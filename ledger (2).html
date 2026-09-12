@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Track your story</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;image-rendering:pixelated}
+:root{
+  --bg:#08051A;--panel:#0F0B26;--panel-alt:#14102E;--border:#2A1F5A;
+  --purple:#A855F7;--purple-dim:#7C3AED;--pink:#EC4899;--cyan:#22D3EE;--cyan-dim:#0891B2;
+  --green:#34D399;--green-dim:#059669;--red:#F87171;--red-dim:#DC2626;
+  --text:#E9D5FF;--text-dim:#A78BFA;--text-muted:#6B5B95;
+  --glow-purple:0 0 8px rgba(168,85,247,.6);--glow-pink:0 0 8px rgba(236,72,153,.6);
+  --glow-cyan:0 0 8px rgba(34,211,238,.6);--glow-green:0 0 8px rgba(52,211,153,.6);
+  --sidebar-width:220px;
+}
+body{font-family:'VT323',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:18px;line-height:1.4;position:relative}
+body.light-mode{--bg:#F3E8FF;--panel:#FFFFFF;--panel-alt:#F9F5FF;--border:#D8B4FE;--text:#1E1B4B;--text-dim:#4C1D95;--text-muted:#7C3AED}
+h1,h2,h3,h4{font-family:'Press Start 2P',monospace;letter-spacing:.5px}
+#particleCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.4}
+.app{display:flex;min-height:100vh;position:relative;z-index:1}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar-width);background:var(--panel);border-right:2px solid var(--border);display:flex;flex-direction:column;padding:16px 12px;position:fixed;top:0;left:0;bottom:0;z-index:100;transition:transform .3s;overflow-y:auto}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:8px 4px 20px;border-bottom:2px solid var(--border);margin-bottom:16px;flex-shrink:0}
+.logo-icon{width:40px;height:40px}
+.logo-icon svg{width:100%;height:100%;filter:drop-shadow(0 0 6px rgba(168,85,247,.8));animation:logoPulse 3s ease-in-out infinite}
+@keyframes logoPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(168,85,247,.8))}50%{filter:drop-shadow(0 0 12px rgba(236,72,153,.9))}}
+.logo-text h1{font-size:14px;color:var(--purple);text-shadow:var(--glow-purple);animation:textGlow 4s ease-in-out infinite}
+@keyframes textGlow{0%,100%{text-shadow:0 0 8px rgba(168,85,247,.6)}50%{text-shadow:0 0 14px rgba(236,72,153,.8)}}
+.logo-text span{font-size:12px;color:var(--text-muted)}
+.nav{display:flex;flex-direction:column;gap:6px;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid transparent;cursor:pointer;transition:all .2s;font-family:'VT323',monospace;font-size:18px;color:var(--text-dim);background:transparent;text-align:left;width:100%}
+.nav-item:hover{background:var(--panel-alt);border-color:var(--border);color:var(--text)}
+.nav-item.active{border-color:var(--purple);background:var(--panel-alt);color:var(--purple);box-shadow:var(--glow-purple);text-shadow:var(--glow-purple);animation:navGlow 3s ease-in-out infinite}
+@keyframes navGlow{0%,100%{box-shadow:0 0 8px rgba(168,85,247,.6)}50%{box-shadow:0 0 16px rgba(236,72,153,.7)}}
+.nav-item .nav-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.nav-item .nav-icon svg{width:100%;height:100%}
+.sidebar-footer{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:2px solid var(--border);flex-shrink:0}
+.sidebar-footer button{display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid var(--border);background:var(--panel-alt);color:var(--text-dim);cursor:pointer;font-family:'VT323',monospace;font-size:16px;transition:all .2s;width:100%;text-align:left}
+.sidebar-footer button:hover{border-color:var(--purple);color:var(--purple);box-shadow:var(--glow-purple)}
+.sidebar-footer button .nav-icon svg{width:100%;height:100%}
+
+/* SHORTCUTS SUBMENU */
+.shortcuts-panel{position:fixed;bottom:20px;left:calc(var(--sidebar-width) + 20px);width:280px;background:var(--panel);border:2px solid var(--purple);box-shadow:var(--glow-purple),0 0 30px rgba(168,85,247,.3);z-index:500;opacity:0;transform:translateY(10px) scale(.98);pointer-events:none;transition:opacity .2s ease,transform .2s ease;padding:0;overflow:hidden}
+.shortcuts-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.shortcuts-panel::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.04) 2px,rgba(34,211,238,.04) 3px);pointer-events:none}
+.shortcuts-panel::after{content:'';position:absolute;top:4px;left:4px;width:10px;height:10px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);box-shadow:0 0 6px var(--cyan)}
+.shortcuts-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:2px solid var(--border);background:var(--panel-alt);position:relative;z-index:1}
+.shortcuts-header h4{font-family:'Press Start 2P',monospace;font-size:10px;color:var(--purple);text-shadow:var(--glow-purple)}
+.shortcuts-close{background:transparent;border:2px solid var(--border);color:var(--text-dim);width:22px;height:22px;cursor:pointer;font-family:'VT323',monospace;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s;line-height:1;padding:0}
+.shortcuts-close:hover{border-color:var(--red);color:var(--red);box-shadow:0 0 8px rgba(248,113,113,.6)}
+.shortcuts-list{padding:8px 12px 12px;display:flex;flex-direction:column;gap:4px;position:relative;z-index:1}
+.shortcut-row{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid transparent;transition:all .15s;animation:shortcutSlide .3s ease-out backwards}
+.shortcut-row:hover{background:var(--panel-alt);border-color:var(--border)}
+@keyframes shortcutSlide{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.shortcut-keys{display:flex;gap:4px}
+.shortcut-key{font-family:'Press Start 2P',monospace;font-size:9px;padding:3px 6px;background:var(--panel-alt);border:2px solid var(--border);border-bottom-width:3px;color:var(--cyan);text-shadow:0 0 4px rgba(34,211,238,.6);min-width:22px;text-align:center}
+.shortcut-desc{font-family:'VT323',monospace;font-size:15px;color:var(--text-dim)}
+.shortcuts-footer{padding:8px 12px;border-top:2px solid var(--border);background:var(--panel-alt);font-size:12px;color:var(--text-muted);text-align:center;font-family:'VT323',monospace;position:relative;z-index:1}
+
+/* MAIN */
+.main{flex:1;margin-left:var(--sidebar-width);padding:0 16px 24px;min-width:0;position:relative;z-index:1}
+.page{display:none}
+.page.active{display:block}
+.top-header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:2px solid var(--border);margin-bottom:16px;flex-wrap:wrap;gap:12px}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-right{display:flex;align-items:center;gap:16px}
+.date-display{font-size:16px;color:var(--text-dim);text-align:right}
+
+.btn-primary{padding:8px 16px;background:linear-gradient(135deg,var(--purple-dim),var(--purple));border:2px solid var(--purple);color:#fff;font-family:'Press Start 2P',monospace;font-size:10px;cursor:pointer;transition:all .2s;box-shadow:var(--glow-purple);text-shadow:0 0 4px rgba(0,0,0,.5)}
+.btn-primary:hover{background:linear-gradient(135deg,var(--purple),var(--pink));box-shadow:var(--glow-pink);transform:translateY(-1px);animation:btnGlow 1.5s ease-in-out infinite}
+@keyframes btnGlow{0%,100%{box-shadow:0 0 8px rgba(236,72,153,.6)}50%{box-shadow:0 0 18px rgba(236,72,153,.9)}}
+
+.dashboard-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{background:var(--panel);border:2px solid var(--border);padding:16px;transition:all .25s;position:relative;overflow:hidden}
+.card:hover{border-color:var(--purple);box-shadow:0 0 12px rgba(168,85,247,.2);transform:translateY(-2px)}
+.card-title{font-family:'Press Start 2P',monospace;font-size:10px;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase}
+.stat-value{font-family:'Press Start 2P',monospace;font-size:20px;margin:8px 0;word-break:break-all}
+.stat-label{font-size:14px;color:var(--text-muted)}
+.stat-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.stat-icon svg{width:100%;height:100%}
+
+/* DASHBOARD CITY */
+.skyline-container{position:relative;height:120px;margin-bottom:16px;border:2px solid var(--border);overflow:hidden;background:linear-gradient(180deg,#0A0620 0%,#150E30 60%,#1A0F3A 100%)}
+.skyline-layer{position:absolute;bottom:0;left:0;width:100%;height:100%}
+.skyline-layer .bldg{position:absolute;bottom:0;background:#1A1035;border:1px solid #2A1F5A;border-bottom:none}
+.skyline-layer .bldg .win{position:absolute;width:2px;height:2px}
+.skyline-layer .bldg .win.on{background:#FBBF24}
+.skyline-layer .bldg .win.off{background:#2A1F5A}
+.skyline-layer .bldg .win.pink{background:#EC4899}
+.skyline-layer .bldg .win.cyan{background:#22D3EE}
+.skyline-layer .bldg .win.flicker{animation:winFlicker 3s steps(2) infinite}
+@keyframes winFlicker{0%,40%,60%,100%{opacity:1}50%{opacity:.1}}
+.skyline-layer .neon{position:absolute;width:8px;height:3px;animation:neonPulse 2.5s steps(2) infinite}
+@keyframes neonPulse{0%,50%,100%{opacity:1}60%,80%{opacity:.2}}
+.skyline-layer .moon{position:absolute;top:8px;right:30px;width:26px;height:26px;background:#EC4899;border-radius:50%;box-shadow:0 0 14px rgba(236,72,153,.9);animation:moonPulse 5s ease-in-out infinite}
+@keyframes moonPulse{0%,100%{box-shadow:0 0 14px rgba(236,72,153,.9)}50%{box-shadow:0 0 26px rgba(236,72,153,1)}}
+.skyline-layer .cloud-drift{position:absolute;top:12px;left:-60px;background:rgba(168,85,247,.14);border:1px solid rgba(168,85,247,.2);animation:cloudMove 25s linear infinite}
+@keyframes cloudMove{0%{transform:translateX(0)}100%{transform:translateX(calc(100vw + 60px))}}
+.skyline-layer .moving-light{position:absolute;width:4px;height:1px;background:#22D3EE;box-shadow:0 0 4px #22D3EE;animation:lightMove 15s linear infinite}
+@keyframes lightMove{0%{transform:translateX(-10px)}100%{transform:translateX(110vw)}}
+.avatar{width:48px;height:48px;animation:avatarIdle 2.5s steps(2) infinite;transform-origin:bottom center}
+@keyframes avatarIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+.avatar svg{width:100%;height:100%}
+.avatar .blink{animation:avatarBlink 4s steps(1) infinite;transform-origin:center}
+@keyframes avatarBlink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.greeting strong{font-size:20px;color:var(--text)}
+.greeting span{font-size:14px;color:var(--text-muted)}
+
+.card-balance{border-color:var(--cyan-dim)}
+.card-balance .stat-value{color:var(--cyan);text-shadow:var(--glow-cyan)}
+.card-balance .stat-icon svg{filter:drop-shadow(0 0 6px rgba(34,211,238,.8));animation:walletBounce 3s ease-in-out infinite}
+@keyframes walletBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.card-income{border-color:var(--green-dim)}
+.card-income .stat-value{color:var(--green);text-shadow:var(--glow-green)}
+.card-income .stat-icon svg{filter:drop-shadow(0 0 6px rgba(52,211,153,.8));animation:incomeRise 2.5s steps(3) infinite}
+@keyframes incomeRise{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.card-expense{border-color:var(--red-dim)}
+.card-expense .stat-value{color:var(--red);text-shadow:0 0 8px rgba(248,113,113,.6)}
+.card-expense .stat-icon svg{filter:drop-shadow(0 0 6px rgba(248,113,113,.8));animation:expenseDrop 2.5s steps(3) infinite}
+@keyframes expenseDrop{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+
+.chart-section{grid-column:1/3;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chart-container{height:200px;position:relative}
+.chart-legend{display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:14px}
+.legend-item{display:flex;align-items:center;justify-content:space-between;padding:2px 0}
+.legend-left{display:flex;align-items:center;gap:6px}
+.legend-dot{width:10px;height:10px;border:1px solid rgba(255,255,255,.2)}
+
+.budget-card{grid-column:3;display:flex;flex-direction:column}
+.budget-bar{height:24px;background:var(--panel-alt);border:2px solid var(--border);margin:8px 0;position:relative;overflow:hidden}
+.budget-fill{height:100%;background:linear-gradient(90deg,var(--purple-dim),var(--pink));transition:width .8s cubic-bezier(.25,.46,.45,.94)}
+.budget-fill::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(255,255,255,.1) 4px,rgba(255,255,255,.1) 8px)}
+.budget-info{display:flex;justify-content:space-between;font-size:14px;color:var(--text-dim)}
+.budget-mascot{display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px;border:2px solid var(--border);background:var(--panel-alt)}
+.mascot-avatar{width:44px;height:44px;flex-shrink:0;animation:catIdle 3s steps(3) infinite}
+@keyframes catIdle{0%,100%{transform:translateY(0)}33%{transform:translateY(-1px)}66%{transform:translateY(1px)}}
+.mascot-avatar svg{width:100%;height:100%;filter:drop-shadow(0 0 6px rgba(168,85,247,.6))}
+.mascot-avatar .tail{animation:catTail 1.5s steps(3) infinite;transform-origin:right center}
+@keyframes catTail{0%,100%{transform:rotate(0)}50%{transform:rotate(-12deg)}}
+.mascot-avatar .blink{animation:catBlink 3.5s steps(1) infinite;transform-origin:center}
+@keyframes catBlink{0%,88%,100%{transform:scaleY(1)}92%{transform:scaleY(.1)}}
+.mascot-text{font-size:14px;color:var(--text-dim)}
+
+.transactions-card{grid-column:1/3}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+.card-header h3{font-size:12px;color:var(--text)}
+.card-header a{font-size:14px;color:var(--purple);cursor:pointer;text-decoration:none;transition:all .2s}
+.card-header a:hover{text-shadow:var(--glow-purple)}
+.transaction-list{display:flex;flex-direction:column;gap:8px}
+.transaction-item{display:flex;align-items:center;gap:12px;padding:8px 10px;border:2px solid transparent;transition:all .3s;cursor:pointer;animation:txSlideIn .4s ease-out}
+@keyframes txSlideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.transaction-item:hover{background:var(--panel-alt);border-color:var(--border)}
+.transaction-item.removing{animation:txFadeOut .3s ease-in forwards}
+@keyframes txFadeOut{to{opacity:0;transform:translateX(10px)}}
+.tx-icon{width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.tx-icon svg{width:100%;height:100%}
+.tx-info{flex:1;min-width:0}
+.tx-name{font-size:16px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-category{font-size:13px;color:var(--text-muted)}
+.tx-right{text-align:right;flex-shrink:0}
+.tx-amount{font-family:'Press Start 2P',monospace;font-size:12px}
+.tx-amount.income{color:var(--green)}
+.tx-amount.expense{color:var(--red)}
+.tx-date{font-size:12px;color:var(--text-muted)}
+
+.quick-add-card{grid-column:3}
+.quick-add-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.quick-add-btn{display:flex;align-items:center;gap:8px;padding:10px;border:2px solid var(--border);background:var(--panel-alt);cursor:pointer;transition:all .2s;color:var(--text-dim);font-family:'VT323',monospace;font-size:16px}
+.quick-add-btn:hover{border-color:var(--purple);color:var(--purple);box-shadow:var(--glow-purple);transform:scale(1.02)}
+.quick-add-btn .qa-icon{width:24px;height:24px;flex-shrink:0}
+.quick-add-btn .qa-icon svg{width:100%;height:100%}
+.quick-add-btn .qa-price{font-size:13px;color:var(--text-muted);margin-left:auto}
+
+.quote-card{grid-column:3;min-height:220px;padding:0;background:linear-gradient(180deg,#0A0620 0%,#1A0F3A 60%,#2A1F5A 100%);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center}
+.mountain-scene{position:absolute;inset:0;overflow:hidden}
+.mountain-scene .mountain{position:absolute;bottom:30px;left:10%;width:80%;height:60px;background:#2A1F5A;clip-path:polygon(0% 100%,20% 40%,40% 70%,60% 20%,80% 50%,100% 100%);animation:mountainGlow 6s ease-in-out infinite}
+@keyframes mountainGlow{0%,100%{filter:drop-shadow(0 0 4px rgba(168,85,247,.3))}50%{filter:drop-shadow(0 0 12px rgba(236,72,153,.5))}}
+.mountain-scene .mountain-2{position:absolute;bottom:30px;left:0;width:100%;height:45px;background:#1A1035;clip-path:polygon(0% 100%,15% 50%,35% 80%,55% 30%,75% 60%,100% 100%)}
+.mountain-scene .city-lights{position:absolute;bottom:28px;left:0;width:100%;height:10px;display:flex;justify-content:space-around;align-items:flex-end}
+.mountain-scene .city-lights .light{width:3px;height:3px;animation:cityLightFlicker 3s steps(2) infinite}
+.mountain-scene .city-lights .light.yellow{background:#FBBF24}
+.mountain-scene .city-lights .light.pink{background:#EC4899}
+.mountain-scene .city-lights .light.cyan{background:#22D3EE}
+.mountain-scene .city-lights .light:nth-child(2n){animation-delay:.5s}
+.mountain-scene .city-lights .light:nth-child(3n){animation-delay:1s}
+@keyframes cityLightFlicker{0%,50%,100%{opacity:1}60%,80%{opacity:.2}}
+.mountain-scene .star{position:absolute;width:2px;height:2px;background:#E9D5FF;animation:starTwinkle 3s ease-in-out infinite}
+@keyframes starTwinkle{0%,100%{opacity:.3}50%{opacity:1}}
+.mountain-scene .cloud{position:absolute;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.15);animation:cloudDriftMountain 30s linear infinite}
+@keyframes cloudDriftMountain{0%{transform:translateX(-30px)}100%{transform:translateX(calc(100% + 30px))}}
+.quote-text{font-size:16px;color:var(--text-dim);font-style:italic;line-height:1.5;position:relative;z-index:1;padding:0 16px;text-shadow:0 2px 4px rgba(0,0,0,.8)}
+.quote-author{font-size:13px;color:var(--text-muted);margin-top:6px;position:relative;z-index:1;padding-bottom:16px;text-shadow:0 2px 4px rgba(0,0,0,.8)}
+
+/* TRANSACTIONS PAGE — NEON STREET */
+.street-scene{position:relative;height:180px;margin-bottom:16px;border:2px solid var(--border);overflow:hidden;background:linear-gradient(180deg,#0A0620 0%,#1A0F3A 45%,#2A1F5A 70%,#150E30 100%)}
+.street-scene .rain-layer{position:absolute;inset:0;pointer-events:none}
+.street-scene .raindrop{position:absolute;width:1px;height:8px;background:linear-gradient(180deg,transparent,#22D3EE);animation:rainFall 1.2s linear infinite;opacity:.7}
+@keyframes rainFall{0%{transform:translateY(-30px)}100%{transform:translateY(220px)}}
+.street-scene .shop{position:absolute;bottom:40px;background:#1A1035;border:1px solid #2A1F5A}
+.street-scene .shop .awning{position:absolute;top:-6px;left:0;right:0;height:6px;background:repeating-linear-gradient(90deg,#EC4899 0 4px,#BE185D 4px 8px)}
+.street-scene .shop .neon-sign{position:absolute;top:4px;left:50%;transform:translateX(-50%);width:12px;height:3px;animation:neonBlink 2s steps(2) infinite}
+@keyframes neonBlink{0%,60%,100%{opacity:1}70%,90%{opacity:.3}}
+.street-scene .shop .shop-window{position:absolute;bottom:8px;left:4px;right:4px;height:12px;background:#FBBF24;opacity:.7;animation:winFlicker 4s steps(2) infinite}
+.street-scene .lamp{position:absolute;bottom:40px;width:2px;height:50px;background:#2A1F5A}
+.street-scene .lamp::before{content:'';position:absolute;top:-4px;left:-3px;width:8px;height:6px;background:#FBBF24;box-shadow:0 0 10px #FBBF24;animation:lampPulse 3s ease-in-out infinite}
+@keyframes lampPulse{0%,100%{opacity:.8}50%{opacity:1}}
+.street-scene .road{position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(180deg,#150E30,#0A0620)}
+.street-scene .road::after{content:'';position:absolute;top:18px;left:0;right:0;height:2px;background:repeating-linear-gradient(90deg,transparent 0 20px,#FBBF24 20px 30px,transparent 30px 50px);animation:roadMove 3s linear infinite}
+@keyframes roadMove{0%{background-position:0 0}100%{background-position:50px 0}}
+.street-scene .car{position:absolute;bottom:10px;width:36px;height:16px;border:1px solid}
+.street-scene .car::before{content:'';position:absolute;top:-4px;left:6px;width:24px;height:4px;background:inherit}
+.street-scene .car::after{content:'';position:absolute;bottom:2px;right:2px;width:4px;height:4px;background:#FBBF24;box-shadow:0 0 6px #FBBF24;animation:headlightBlink 1.5s steps(2) infinite}
+@keyframes carDrive{0%{transform:translateX(-50px)}100%{transform:translateX(calc(100% + 100px))}}
+@keyframes headlightBlink{0%,70%,100%{opacity:1}80%,90%{opacity:.3}}
+.street-scene .steam{position:absolute;bottom:60px;width:6px;height:6px;background:rgba(168,85,247,.4);border-radius:50%;animation:steamRise 3s ease-out infinite}
+@keyframes steamRise{0%{transform:translateY(0) scale(1);opacity:.6}100%{transform:translateY(-40px) scale(1.5);opacity:0}}
+.street-scene .pedestrian{position:absolute;bottom:40px;width:6px;height:14px;background:#A855F7;animation:pedWalk 12s linear infinite}
+.street-scene .pedestrian::before{content:'';position:absolute;top:-4px;left:1px;width:4px;height:4px;background:#FCD34D;border-radius:50%}
+@keyframes pedWalk{0%{transform:translateX(-20px)}100%{transform:translateX(calc(100% + 20px))}}
+
+.filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filters input,.filters select{padding:6px 10px;background:var(--panel-alt);border:2px solid var(--border);color:var(--text);font-family:'VT323',monospace;font-size:16px;outline:none}
+.filters input:focus,.filters select:focus{border-color:var(--purple)}
+.tx-table{width:100%;border-collapse:collapse}
+.tx-table th{font-family:'Press Start 2P',monospace;font-size:10px;color:var(--text-dim);text-align:left;padding:8px;border-bottom:2px solid var(--border)}
+.tx-table td{padding:10px 8px;border-bottom:1px solid var(--border);font-size:16px}
+.tx-table tr:hover td{background:var(--panel-alt)}
+.tx-actions{display:flex;gap:6px}
+.tx-actions button{padding:4px 8px;background:var(--panel-alt);border:2px solid var(--border);color:var(--text-dim);cursor:pointer;font-family:'VT323',monospace;font-size:14px;transition:all .2s}
+.tx-actions button:hover{border-color:var(--purple);color:var(--purple)}
+.tx-actions button.delete:hover{border-color:var(--red);color:var(--red)}
+
+/* ANALYTICS — HOLO LAB */
+.data-lab-scene{position:relative;height:160px;margin-bottom:16px;border:2px solid var(--border);overflow:hidden;background:radial-gradient(ellipse at center,#0F0B26 0%,#050310 100%)}
+.data-lab-scene .holo-screen{position:absolute;background:linear-gradient(180deg,rgba(34,211,238,.08),rgba(34,211,238,.02));border:1px solid rgba(34,211,238,.4);box-shadow:0 0 12px rgba(34,211,238,.3),inset 0 0 12px rgba(34,211,238,.1);animation:holoFlicker 4s ease-in-out infinite}
+@keyframes holoFlicker{0%,100%{opacity:.8}50%{opacity:1}52%{opacity:.7}54%{opacity:1}}
+.data-lab-scene .holo-screen::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.15) 2px,rgba(34,211,238,.15) 3px)}
+.data-lab-scene .holo-bar{position:absolute;background:linear-gradient(0deg,#A855F7,#EC4899);animation:holoBar 3s ease-in-out infinite;box-shadow:0 0 6px rgba(236,72,153,.7)}
+@keyframes holoBar{0%,100%{transform:scaleY(1);transform-origin:bottom}50%{transform:scaleY(1.15);transform-origin:bottom}}
+.data-lab-scene .scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#22D3EE,transparent);animation:scanMove 4s linear infinite;box-shadow:0 0 6px #22D3EE}
+@keyframes scanMove{0%{top:0;opacity:.4}50%{opacity:1}100%{top:100%;opacity:.4}}
+.data-lab-scene .data-particle{position:absolute;width:2px;height:2px;background:#22D3EE;animation:dataFloat 5s linear infinite;box-shadow:0 0 4px #22D3EE}
+@keyframes dataFloat{0%{transform:translateY(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(-80px);opacity:0}}
+.data-lab-scene .terminal{position:absolute;bottom:8px;left:8px;width:80px;height:30px;background:#0A0620;border:1px solid #22D3EE;box-shadow:0 0 8px rgba(34,211,238,.4)}
+.data-lab-scene .terminal::before{content:'';position:absolute;inset:2px;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(34,211,238,.15) 3px,rgba(34,211,238,.15) 4px)}
+.data-lab-scene .terminal .cursor{position:absolute;bottom:4px;left:4px;width:4px;height:6px;background:#22D3EE;animation:cursorBlink 1s steps(1) infinite}
+@keyframes cursorBlink{0%,50%{opacity:1}51%,100%{opacity:0}}
+
+.analytics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.analytics-full{grid-column:1/-1}
+#page-analytics .card{border-color:rgba(34,211,238,.4);background:linear-gradient(180deg,rgba(15,11,38,.95),rgba(5,3,16,.95));box-shadow:inset 0 0 20px rgba(34,211,238,.05)}
+#page-analytics .card:hover{border-color:var(--cyan);box-shadow:0 0 16px rgba(34,211,238,.3),inset 0 0 20px rgba(34,211,238,.1)}
+#page-analytics .card-title{color:var(--cyan)}
+
+/* BUDGET — CABIN */
+.mountain-cabin-scene{position:relative;height:200px;margin-bottom:16px;border:2px solid var(--border);overflow:hidden;background:linear-gradient(180deg,#0A0620 0%,#1A1035 40%,#2A1F5A 70%,#1A0F3A 100%)}
+.mountain-cabin-scene .stars{position:absolute;inset:0}
+.mountain-cabin-scene .stars .star{position:absolute;width:2px;height:2px;background:#E9D5FF;animation:starTwinkle 3s ease-in-out infinite}
+.mountain-cabin-scene .mtn-far{position:absolute;bottom:40px;left:0;width:100%;height:80px;background:#1A1035;clip-path:polygon(0% 100%,15% 40%,30% 70%,50% 25%,70% 60%,85% 35%,100% 100%);opacity:.7}
+.mountain-cabin-scene .mtn-near{position:absolute;bottom:40px;left:0;width:100%;height:100px;background:#2A1F5A;clip-path:polygon(0% 100%,10% 55%,25% 80%,40% 45%,60% 75%,80% 50%,100% 100%)}
+.mountain-cabin-scene .ground{position:absolute;bottom:0;left:0;right:0;height:40px;background:#150E30}
+.mountain-cabin-scene .cabin{position:absolute;bottom:30px;left:calc(50% - 30px);width:60px;height:36px;background:#4C1D95;border:2px solid #2A1F5A}
+.mountain-cabin-scene .cabin::before{content:'';position:absolute;top:-12px;left:-4px;right:-4px;height:12px;background:#2A1F5A;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.mountain-cabin-scene .cabin .win{position:absolute;top:8px;left:10px;width:10px;height:10px;background:#FBBF24;box-shadow:0 0 8px #FBBF24;animation:cabinWinGlow 3s ease-in-out infinite}
+.mountain-cabin-scene .cabin .win-2{position:absolute;top:8px;right:10px;width:10px;height:10px;background:#FBBF24;box-shadow:0 0 8px #FBBF24;animation:cabinWinGlow 3s ease-in-out infinite;animation-delay:1.5s}
+@keyframes cabinWinGlow{0%,100%{opacity:.85}50%{opacity:1}}
+.mountain-cabin-scene .cabin .door{position:absolute;bottom:0;left:calc(50% - 5px);width:10px;height:16px;background:#7C3AED}
+.mountain-cabin-scene .chimney{position:absolute;bottom:66px;left:calc(50% + 12px);width:6px;height:14px;background:#2A1F5A}
+.mountain-cabin-scene .smoke{position:absolute;bottom:80px;left:calc(50% + 12px);width:4px;height:4px;background:rgba(233,213,255,.4);border-radius:50%;animation:smokeRise 4s ease-out infinite}
+@keyframes smokeRise{0%{transform:translate(0,0) scale(1);opacity:.6}100%{transform:translate(-10px,-40px) scale(2);opacity:0}}
+.mountain-cabin-scene .campfire{position:absolute;bottom:24px;left:calc(50% + 60px);width:20px;height:12px;background:#2A1F5A;clip-path:polygon(0 100%,20% 0,40% 60%,60% 0,80% 60%,100% 0,100% 100%)}
+.mountain-cabin-scene .fire{position:absolute;bottom:30px;left:calc(50% + 66px);width:8px;height:10px;background:linear-gradient(0deg,#FBBF24,#EC4899);clip-path:polygon(50% 0,100% 100%,0 100%);animation:fireFlicker .8s steps(2) infinite}
+@keyframes fireFlicker{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.2)}}
+.mountain-cabin-scene .tree{position:absolute;bottom:30px;width:14px;height:30px}
+.mountain-cabin-scene .tree::before{content:'';position:absolute;bottom:0;left:6px;width:2px;height:8px;background:#4C1D95}
+.mountain-cabin-scene .tree::after{content:'';position:absolute;bottom:6px;left:0;width:14px;height:18px;background:#2A1F5A;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.mountain-cabin-scene .tree .leaf{animation:leafSway 4s steps(3) infinite;transform-origin:bottom center}
+@keyframes leafSway{0%,100%{transform:rotate(0)}50%{transform:rotate(3deg)}}
+.mountain-cabin-scene .firefly{position:absolute;width:2px;height:2px;background:#FBBF24;box-shadow:0 0 6px #FBBF24;animation:fireflyFloat 6s ease-in-out infinite}
+@keyframes fireflyFloat{0%{transform:translate(0,0);opacity:0}20%{opacity:1}50%{transform:translate(20px,-20px);opacity:1}80%{opacity:1}100%{transform:translate(-10px,-40px);opacity:0}}
+.mountain-cabin-scene .companion{position:absolute;bottom:24px;left:calc(50% + 80px);width:20px;height:20px}
+.mountain-cabin-scene .companion .eye{animation:catBlink 3.5s steps(1) infinite}
+.mountain-cabin-scene .companion .tail{animation:catTail 2s steps(3) infinite;transform-origin:right center}
+
+.budget-settings{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.category-budget-item{display:flex;align-items:center;gap:8px;padding:8px;border:2px solid var(--border);margin-bottom:6px;background:var(--panel-alt)}
+.category-budget-item .cat-name{flex:1}
+.category-budget-item input{width:100px;padding:4px 8px;background:var(--panel);border:2px solid var(--border);color:var(--text);font-family:'VT323',monospace;font-size:16px;outline:none}
+.category-budget-item input:focus{border-color:var(--purple)}
+
+/* DATA — ARCHIVE */
+.archive-scene{position:relative;height:180px;margin-bottom:16px;border:2px solid var(--border);overflow:hidden;background:linear-gradient(180deg,#050310 0%,#0A0E2A 100%)}
+.archive-scene .server{position:absolute;bottom:20px;width:30px;height:100px;background:#0F0B26;border:1px solid #22D3EE;box-shadow:inset 0 0 20px rgba(34,211,238,.2),0 0 8px rgba(34,211,238,.3)}
+.archive-scene .server .led{position:absolute;left:4px;width:4px;height:2px;background:#22D3EE;box-shadow:0 0 4px #22D3EE;animation:ledBlink 1.5s steps(2) infinite}
+@keyframes ledBlink{0%,60%,100%{opacity:1}70%,90%{opacity:.2}}
+.archive-scene .server .grill{position:absolute;left:4px;right:4px;height:1px;background:#1A1035}
+.archive-scene .crt{position:absolute;bottom:20px;width:60px;height:50px;background:#0F0B26;border:2px solid #22D3EE;box-shadow:0 0 12px rgba(34,211,238,.4)}
+.archive-scene .crt::before{content:'';position:absolute;inset:4px;background:#0A0620}
+.archive-scene .crt::after{content:'';position:absolute;inset:4px;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.2) 2px,rgba(34,211,238,.2) 3px);animation:crtScan 3s linear infinite}
+@keyframes crtScan{0%{background-position:0 0}100%{background-position:0 20px}}
+.archive-scene .crt .text{position:absolute;bottom:8px;left:8px;width:6px;height:8px;background:#34D399;animation:cursorBlink 1s steps(1) infinite}
+.archive-scene .floppy{position:absolute;bottom:20px;width:24px;height:24px;background:#1A1035;border:1px solid #22D3EE}
+.archive-scene .floppy::before{content:'';position:absolute;top:2px;left:4px;width:16px;height:8px;background:#22D3EE;opacity:.6}
+.archive-scene .floppy .spin{position:absolute;bottom:4px;right:4px;width:6px;height:6px;background:#EC4899;border-radius:50%;animation:diskSpin 1.5s linear infinite}
+@keyframes diskSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+.archive-scene .scan-line-h{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#22D3EE,transparent);animation:scanH 5s linear infinite;box-shadow:0 0 6px #22D3EE;opacity:.6}
+@keyframes scanH{0%{top:0}100%{top:100%}}
+.archive-scene .terminal-text{position:absolute;bottom:60px;left:20px;font-family:'VT323',monospace;font-size:11px;color:#34D399;text-shadow:0 0 4px #34D399}
+.archive-scene .terminal-text::after{content:'_';animation:cursorBlink 1s steps(1) infinite}
+
+.data-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.data-btn{padding:16px;background:var(--panel-alt);border:2px solid var(--border);color:var(--text-dim);cursor:pointer;font-family:'VT323',monospace;font-size:18px;transition:all .2s;text-align:center}
+.data-btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.4)}
+.data-btn.danger:hover{border-color:var(--red);color:var(--red);box-shadow:0 0 12px rgba(248,113,113,.5)}
+
+/* SETTINGS / WORKSHOP */
+.workshop-scene{position:relative;height:150px;margin-bottom:16px;border:2px solid var(--border);overflow:hidden;background:linear-gradient(180deg,#150E30 0%,#1A1035 100%)}
+.workshop-scene .bench{position:absolute;bottom:20px;left:0;right:0;height:14px;background:#2A1F5A;border-top:2px solid #4C1D95}
+.workshop-scene .tool{position:absolute;bottom:34px}
+.workshop-scene .tool.wrench{width:4px;height:20px;background:#22D3EE;box-shadow:0 0 4px #22D3EE;transform:rotate(20deg);animation:toolSway 3s ease-in-out infinite}
+.workshop-scene .tool.screwdriver{width:3px;height:18px;background:#EC4899;box-shadow:0 0 4px #EC4899;transform:rotate(-15deg);animation:toolSway 3s ease-in-out infinite;animation-delay:1s}
+@keyframes toolSway{0%,100%{transform:rotate(15deg)}50%{transform:rotate(-15deg)}}
+.workshop-scene .robot{position:absolute;bottom:34px;right:20px;width:24px;height:28px}
+.workshop-scene .robot .antenna{animation:antennaGlow 2s ease-in-out infinite}
+@keyframes antennaGlow{0%,100%{opacity:.7}50%{opacity:1}}
+.workshop-scene .robot .eye{animation:robotEye 3s steps(2) infinite}
+@keyframes robotEye{0%,70%,100%{opacity:1}80%,90%{opacity:.3}}
+.workshop-scene .circuit{position:absolute;top:10px;left:20px;width:40px;height:40px;background:repeating-linear-gradient(90deg,transparent,transparent 6px,rgba(34,211,238,.3) 6px,rgba(34,211,238,.3) 7px),repeating-linear-gradient(0deg,transparent,transparent 6px,rgba(34,211,238,.3) 6px,rgba(34,211,238,.3) 7px);border:1px solid #22D3EE;animation:circuitPulse 3s ease-in-out infinite}
+@keyframes circuitPulse{0%,100%{box-shadow:0 0 4px rgba(34,211,238,.4)}50%{box-shadow:0 0 14px rgba(34,211,238,.8)}}
+.workshop-scene .spark{position:absolute;width:3px;height:3px;background:#FBBF24;box-shadow:0 0 6px #FBBF24;animation:sparkFly 1.5s ease-out infinite}
+@keyframes sparkFly{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(15px,-25px) scale(.3);opacity:0}}
+.workshop-scene .lamp-w{position:absolute;top:4px;width:4px;height:8px;background:#FBBF24;box-shadow:0 0 12px #FBBF24;animation:lampPulse 3s ease-in-out infinite}
+.workshop-scene .poster{position:absolute;top:10px;right:20px;width:40px;height:22px;background:#1A1035;border:1px solid #A855F7;font-size:7px;color:#EC4899;display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P',monospace}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(6px)}
+.modal-overlay.open{display:flex;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--panel);border:2px solid var(--purple);padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:var(--glow-purple),0 0 40px rgba(168,85,247,.3);animation:slideUp .3s ease;position:relative}
+.modal::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.05) 2px,rgba(34,211,238,.05) 3px);pointer-events:none;animation:holoScan 6s linear infinite}
+@keyframes holoScan{0%{background-position:0 0}100%{background-position:0 30px}}
+.modal::after{content:'';position:absolute;top:4px;left:4px;width:8px;height:8px;border-top:2px solid #22D3EE;border-left:2px solid #22D3EE;box-shadow:0 0 6px #22D3EE}
+.modal h2{font-family:'Press Start 2P',monospace;font-size:14px;color:var(--purple);margin-bottom:16px;text-shadow:var(--glow-purple)}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:14px;color:var(--text-dim);margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;background:var(--panel-alt);border:2px solid var(--border);color:var(--text);font-family:'VT323',monospace;font-size:18px;outline:none;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--purple);box-shadow:var(--glow-purple)}
+.form-group textarea{resize:vertical;min-height:60px}
+.type-toggle{display:flex;gap:8px;margin-bottom:12px}
+.type-toggle button{flex:1;padding:8px;border:2px solid var(--border);background:var(--panel-alt);color:var(--text-dim);font-family:'VT323',monospace;font-size:18px;cursor:pointer;transition:all .2s}
+.type-toggle button.active.income{border-color:var(--green);color:var(--green);box-shadow:var(--glow-green)}
+.type-toggle button.active.expense{border-color:var(--red);color:var(--red);box-shadow:0 0 8px rgba(248,113,113,.6)}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+.modal-actions button{flex:1;padding:10px;font-family:'Press Start 2P',monospace;font-size:10px;cursor:pointer;transition:all .2s;border:2px solid}
+.btn-cancel{background:var(--panel-alt);border-color:var(--border);color:var(--text-dim)}
+.btn-cancel:hover{border-color:var(--pink);color:var(--pink)}
+.btn-submit{background:linear-gradient(135deg,var(--purple-dim),var(--purple));border-color:var(--purple);color:#fff;box-shadow:var(--glow-purple)}
+.btn-submit:hover{background:linear-gradient(135deg,var(--purple),var(--pink));box-shadow:var(--glow-pink)}
+
+.toast-container{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 16px;background:var(--panel);border:2px solid var(--purple);color:var(--text);font-family:'VT323',monospace;font-size:16px;box-shadow:var(--glow-purple);animation:slideIn .3s ease;min-width:200px}
+.toast.success{border-color:var(--green);box-shadow:var(--glow-green)}
+.toast.error{border-color:var(--red);box-shadow:0 0 8px rgba(248,113,113,.6)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+.empty-state{text-align:center;padding:32px 16px;color:var(--text-muted);font-size:16px}
+.empty-scene{width:100%;height:80px;margin-bottom:12px;position:relative;border:2px solid var(--border);background:#0A0620;overflow:hidden}
+.empty-scene.street-empty{background:linear-gradient(180deg,#0A0620 0%,#1A0F3A 60%,#150E30 100%)}
+.empty-scene.street-empty::after{content:'';position:absolute;bottom:14px;left:20%;width:8px;height:16px;background:#A855F7;box-shadow:24px 0 0 #FCD34D;animation:emptyPed 4s ease-in-out infinite}
+@keyframes emptyPed{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.empty-scene.terminal-empty{background:radial-gradient(ellipse at center,#0F0B26,#050310)}
+.empty-scene.terminal-empty::before{content:'> NO DATA_';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'VT323',monospace;font-size:18px;color:#22D3EE;text-shadow:0 0 8px #22D3EE;animation:noDataBlink 2s steps(1) infinite}
+@keyframes noDataBlink{0%,70%,100%{opacity:1}80%,90%{opacity:.4}}
+.empty-scene.search-empty{background:linear-gradient(180deg,#0A0620,#150E30)}
+.empty-scene.search-empty::before{content:'?';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Press Start 2P',monospace;font-size:32px;color:#FBBF24;text-shadow:0 0 10px #FBBF24;animation:noDataBlink 1.5s steps(1) infinite}
+
+/* SIDEBAR BOTTOM SCENE & CAR */
+.sidebar-bottom-scene{position:relative;height:80px;margin-top:auto;border-top:2px solid var(--border);overflow:hidden;flex-shrink:0}
+.sidebar-bottom-scene .bldg-row{position:absolute;bottom:12px;left:0;width:100%;height:40px;display:flex;align-items:flex-end;gap:2px;padding:0 4px}
+.sidebar-bottom-scene .bldg{background:#1A1035;border:1px solid #2A1F5A;border-bottom:none;flex:1;min-width:8px}
+.sidebar-bottom-scene .bldg .win{position:absolute;width:2px;height:2px}
+.sidebar-bottom-scene .bldg .win.on{background:#FBBF24}
+.sidebar-bottom-scene .bldg .win.off{background:#2A1F5A}
+.sidebar-bottom-scene .bldg .win.pink{background:#EC4899}
+.sidebar-bottom-scene .bldg .win.cyan{background:#22D3EE}
+.sidebar-bottom-scene .bldg .win.flicker{animation:winFlicker 3s steps(2) infinite}
+.sidebar-bottom-scene .road{position:absolute;bottom:0;left:0;width:100%;height:12px;background:#150E30;border-top:1px solid #2A1F5A}
+.sidebar-bottom-scene .road::after{content:'';position:absolute;top:4px;left:0;right:0;height:1px;background:repeating-linear-gradient(90deg,transparent 0 8px,#FBBF24 8px 12px,transparent 12px 20px);animation:roadMove 2s linear infinite}
+@keyframes roadMove{0%{background-position:0 0}100%{background-position:20px 0}}
+.sidebar-bottom-scene .cat{position:absolute;bottom:12px;right:8px;width:16px;height:16px}
+.sidebar-bottom-scene .cat svg{width:100%;height:100%;filter:drop-shadow(0 0 4px rgba(168,85,247,.6))}
+.sidebar-bottom-scene .cat .tail{animation:catTail 1.5s steps(3) infinite;transform-origin:right center}
+.sidebar-bottom-scene .cat .blink{animation:catBlink 3.5s steps(1) infinite;transform-origin:center}
+.sidebar-bottom-scene .car{position:absolute;bottom:2px;left:-40px;width:32px;height:14px;animation:driveCar 8s linear infinite}
+@keyframes driveCar{0%{left:-40px}100%{left:calc(100% + 10px)}}
+.sidebar-bottom-scene .car .car-body{position:absolute;bottom:2px;left:2px;width:28px;height:10px;background:#4C1D95;border:1px solid #7C3AED;border-radius:2px 2px 0 0}
+.sidebar-bottom-scene .car .car-body::before{content:'';position:absolute;top:-4px;left:4px;width:20px;height:4px;background:#4C1D95;border:1px solid #7C3AED;border-bottom:none;border-radius:2px 2px 0 0}
+.sidebar-bottom-scene .car .car-body::after{content:'';position:absolute;bottom:-2px;left:2px;width:24px;height:2px;background:#22D3EE;box-shadow:0 0 6px #22D3EE;border-radius:1px}
+.sidebar-bottom-scene .car .wheel{position:absolute;bottom:0;width:6px;height:6px;background:#1E1B4B;border:1px solid #22D3EE;border-radius:50%;animation:wheelSpin 0.3s linear infinite}
+.sidebar-bottom-scene .car .wheel.front{right:4px}
+.sidebar-bottom-scene .car .wheel.rear{left:4px}
+@keyframes wheelSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+.sidebar-bottom-scene .car .headlight{position:absolute;bottom:6px;right:-2px;width:4px;height:3px;background:#FBBF24;box-shadow:0 0 6px #FBBF24;animation:headlightBlink 0.8s steps(2) infinite}
+.sidebar-bottom-scene .car .exhaust{position:absolute;bottom:2px;left:-4px;width:3px;height:3px;background:rgba(168,85,247,.6);border-radius:50%;animation:exhaustPuff 0.6s ease-out infinite}
+@keyframes exhaustPuff{0%{transform:translate(0,0) scale(1);opacity:.6}100%{transform:translate(-6px,-4px) scale(0.3);opacity:0}}
+.sidebar-bottom-scene .car .underglow{position:absolute;bottom:-2px;left:4px;width:20px;height:2px;background:#EC4899;box-shadow:0 0 8px #EC4899;border-radius:1px;opacity:0.7}
+.sidebar-bottom-scene .car .bounce{position:absolute;inset:0;animation:carBounce 0.5s steps(2) infinite}
+@keyframes carBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+
+.mobile-menu-btn{display:none;position:fixed;bottom:20px;right:20px;z-index:200;width:48px;height:48px;background:var(--panel);border:2px solid var(--purple);color:var(--purple);font-size:24px;cursor:pointer;box-shadow:var(--glow-purple);align-items:center;justify-content:center}
+@media (max-width:1024px){
+  :root{--sidebar-width:60px}
+  .sidebar{width:60px;padding:12px 6px}
+  .logo-text,.nav-item span:not(.nav-icon),.sidebar-footer button span:not(.nav-icon){display:none}
+  .nav-item{justify-content:center;padding:10px}
+  .main{margin-left:60px}
+  .dashboard-grid{grid-template-columns:1fr 1fr}
+  .chart-section{grid-column:1/-1}
+  .budget-card,.quick-add-card,.quote-card{grid-column:span 1}
+  .transactions-card{grid-column:1/-1}
+  .shortcuts-panel{left:80px}
+  .sidebar-bottom-scene{display:none}
+}
+@media (max-width:768px){
+  .mobile-menu-btn{display:flex}
+  .sidebar{transform:translateX(-100%);width:220px;padding:16px 12px}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar .logo-text,.sidebar .nav-item span:not(.nav-icon),.sidebar .sidebar-footer button span:not(.nav-icon){display:block}
+  .sidebar .nav-item{justify-content:flex-start;padding:10px 12px}
+  .main{margin-left:0}
+  .dashboard-grid{grid-template-columns:1fr}
+  .chart-section{grid-template-columns:1fr}
+  .analytics-grid{grid-template-columns:1fr}
+  .budget-settings{grid-template-columns:1fr}
+  .data-actions{grid-template-columns:1fr}
+  .top-header{flex-direction:column;align-items:flex-start}
+  .header-right{width:100%;justify-content:space-between}
+  .tx-table{display:block;overflow-x:auto}
+  .stat-value{font-size:16px}
+  .shortcuts-panel{left:20px;right:20px;width:auto;bottom:80px}
+  .sidebar-footer button#shortcutsBtn { display: none; }
+  .sidebar-bottom-scene{display:block;height:100px}
+  .sidebar-bottom-scene .bldg-row{height:50px}
+  .sidebar-bottom-scene .car{width:40px;height:18px}
+  .sidebar-bottom-scene .cat{width:20px;height:20px}
+}
+@media (max-width:480px){
+  .dashboard-grid{gap:8px}
+  .card{padding:12px}
+  .stat-value{font-size:14px}
+  .quick-add-grid{grid-template-columns:1fr}
+  .modal{padding:16px}
+  .sidebar-bottom-scene{height:85px}
+  .sidebar-bottom-scene .bldg-row{height:42px}
+  .sidebar-bottom-scene .car{width:32px;height:14px}
+  .sidebar-bottom-scene .car .car-body{width:28px;height:10px}
+  .sidebar-bottom-scene .car .car-body::before{width:20px;height:4px}
+  .sidebar-bottom-scene .car .wheel{width:6px;height:6px}
+  .sidebar-bottom-scene .cat{width:16px;height:16px;right:6px}
+}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--purple-dim)}
+.crt-overlay{position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,rgba(0,0,0,.03),rgba(0,0,0,.03) 1px,transparent 1px,transparent 3px);opacity:.4}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="crt-overlay"></div>
+<canvas id="particleCanvas"></canvas>
+<button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 16 16" width="40" height="40" shape-rendering="crispEdges">
+          <rect x="3" y="1" width="10" height="1" fill="#A855F7"/>
+          <rect x="2" y="2" width="1" height="12" fill="#A855F7"/>
+          <rect x="13" y="2" width="1" height="12" fill="#A855F7"/>
+          <rect x="3" y="14" width="10" height="1" fill="#A855F7"/>
+          <rect x="4" y="3" width="8" height="1" fill="#EC4899"/>
+          <rect x="4" y="4" width="1" height="10" fill="#EC4899"/>
+          <rect x="11" y="4" width="1" height="10" fill="#EC4899"/>
+          <rect x="5" y="5" width="6" height="1" fill="#E9D5FF"/>
+          <rect x="5" y="7" width="6" height="1" fill="#E9D5FF"/>
+          <rect x="5" y="9" width="4" height="1" fill="#E9D5FF"/>
+          <rect x="5" y="11" width="6" height="1" fill="#E9D5FF"/>
+        </svg>
+      </div>
+      <div class="logo-text"><h1>Ledger</h1><span>TRACK YOUR STORY</span></div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-page="dashboard"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="2" width="12" height="12" fill="#A855F7"/><rect x="3" y="3" width="4" height="4" fill="#E9D5FF"/><rect x="9" y="3" width="4" height="4" fill="#E9D5FF"/><rect x="3" y="9" width="4" height="4" fill="#E9D5FF"/><rect x="9" y="9" width="4" height="4" fill="#E9D5FF"/></svg></span><span>Dashboard</span></button>
+      <button class="nav-item" data-page="transactions"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="3" y="3" width="10" height="1" fill="#A855F7"/><rect x="3" y="6" width="10" height="1" fill="#A855F7"/><rect x="3" y="9" width="10" height="1" fill="#A855F7"/><rect x="3" y="12" width="6" height="1" fill="#A855F7"/></svg></span><span>Transactions</span></button>
+      <button class="nav-item" data-page="analytics"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="10" width="3" height="4" fill="#22D3EE"/><rect x="7" y="6" width="3" height="8" fill="#22D3EE"/><rect x="12" y="3" width="3" height="11" fill="#22D3EE"/></svg></span><span>Analytics</span></button>
+      <button class="nav-item" data-page="budget"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="3" width="12" height="10" fill="none" stroke="#A855F7" stroke-width="2"/><rect x="4" y="5" width="8" height="2" fill="#E9D5FF"/><rect x="4" y="8" width="5" height="2" fill="#E9D5FF"/></svg></span><span>Budget</span></button>
+      <button class="nav-item" data-page="data"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="2" width="12" height="12" fill="#22D3EE"/><rect x="4" y="4" width="8" height="8" fill="#E9D5FF"/><rect x="6" y="6" width="4" height="4" fill="#22D3EE"/></svg></span><span>Data</span></button>
+      <button class="nav-item" data-page="settings"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="2" width="12" height="12" fill="none" stroke="#EC4899" stroke-width="2"/><rect x="5" y="5" width="2" height="2" fill="#EC4899"/><rect x="9" y="5" width="2" height="2" fill="#EC4899"/><rect x="5" y="9" width="6" height="2" fill="#EC4899"/></svg></span><span>Workshop</span></button>
+    </nav>
+    <div class="sidebar-footer">
+      <button id="themeToggle"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="4" y="3" width="8" height="1" fill="#A855F7"/><rect x="3" y="4" width="1" height="8" fill="#A855F7"/><rect x="12" y="4" width="1" height="8" fill="#A855F7"/><rect x="4" y="12" width="8" height="1" fill="#A855F7"/><rect x="7" y="2" width="2" height="1" fill="#E9D5FF"/><rect x="7" y="13" width="2" height="1" fill="#E9D5FF"/></svg></span><span>Dark mode</span></button>
+      <button id="shortcutsBtn"><span class="nav-icon"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="4" width="12" height="8" fill="none" stroke="#A855F7" stroke-width="1"/><rect x="4" y="7" width="6" height="1" fill="#E9D5FF"/><rect x="4" y="9" width="8" height="1" fill="#E9D5FF"/><rect x="11" y="6" width="2" height="2" fill="#EC4899"/><rect x="11" y="9" width="2" height="2" fill="#EC4899"/></svg></span><span>Shortcuts</span></button>
+    </div>
+    <!-- SIDEBAR BOTTOM DECORATIVE SCENE WITH CAR -->
+    <div class="sidebar-bottom-scene">
+      <div class="bldg-row">
+        <div class="bldg" style="height:30px"><div class="win on" style="left:2px;top:4px"></div><div class="win off" style="left:2px;top:10px"></div><div class="win on flicker" style="left:2px;top:16px"></div><div class="win pink" style="left:6px;top:6px"></div><div class="win off" style="left:6px;top:12px"></div><div class="win cyan" style="left:6px;top:18px"></div></div>
+        <div class="bldg" style="height:40px"><div class="win off" style="left:2px;top:4px"></div><div class="win on" style="left:2px;top:10px"></div><div class="win pink flicker" style="left:2px;top:16px"></div><div class="win off" style="left:2px;top:22px"></div><div class="win cyan" style="left:6px;top:8px"></div><div class="win on" style="left:6px;top:14px"></div><div class="win off" style="left:6px;top:20px"></div><div class="win pink" style="left:6px;top:26px"></div></div>
+        <div class="bldg" style="height:25px"><div class="win off" style="left:2px;top:4px"></div><div class="win on" style="left:2px;top:10px"></div><div class="win cyan" style="left:6px;top:6px"></div><div class="win off" style="left:6px;top:12px"></div></div>
+        <div class="bldg" style="height:35px"><div class="win on flicker" style="left:2px;top:4px"></div><div class="win pink" style="left:2px;top:10px"></div><div class="win off" style="left:2px;top:16px"></div><div class="win cyan" style="left:6px;top:6px"></div><div class="win on" style="left:6px;top:12px"></div><div class="win off" style="left:6px;top:18px"></div></div>
+        <div class="bldg" style="height:20px"><div class="win off" style="left:2px;top:4px"></div><div class="win on" style="left:2px;top:10px"></div></div>
+        <div class="bldg" style="height:45px"><div class="win cyan" style="left:2px;top:4px"></div><div class="win off" style="left:2px;top:10px"></div><div class="win on flicker" style="left:2px;top:16px"></div><div class="win pink" style="left:2px;top:22px"></div><div class="win off" style="left:2px;top:28px"></div><div class="win cyan" style="left:6px;top:8px"></div><div class="win on" style="left:6px;top:14px"></div><div class="win off" style="left:6px;top:20px"></div><div class="win pink" style="left:6px;top:26px"></div></div>
+        <div class="bldg" style="height:28px"><div class="win on" style="left:2px;top:4px"></div><div class="win off" style="left:2px;top:10px"></div><div class="win pink" style="left:6px;top:6px"></div><div class="win cyan" style="left:6px;top:12px"></div></div>
+      </div>
+      <div class="road"></div>
+      <div class="cat">
+        <svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges">
+          <rect x="2" y="3" width="2" height="2" fill="#A855F7"/><rect x="12" y="3" width="2" height="2" fill="#A855F7"/>
+          <rect x="3" y="5" width="10" height="7" fill="#C084FC"/>
+          <rect x="5" y="7" width="2" height="2" fill="#FBBF24" class="blink"/><rect x="9" y="7" width="2" height="2" fill="#FBBF24" class="blink"/>
+          <rect x="6" y="7" width="1" height="1" fill="#1E1B4B"/><rect x="10" y="7" width="1" height="1" fill="#1E1B4B"/>
+          <rect x="7" y="9" width="2" height="1" fill="#EC4899"/>
+          <rect x="4" y="12" width="8" height="3" fill="#7C3AED"/>
+          <rect x="12" y="10" width="3" height="2" fill="#A855F7" class="tail"/>
+        </svg>
+      </div>
+      <div class="car">
+        <div class="bounce">
+          <div class="car-body"></div>
+          <div class="wheel rear"></div>
+          <div class="wheel front"></div>
+          <div class="headlight"></div>
+          <div class="underglow"></div>
+        </div>
+        <div class="exhaust"></div>
+        <div class="exhaust" style="animation-delay:0.3s;left:-8px"></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="skyline-container" id="skylineContainer"></div>
+      <div class="top-header">
+        <div class="header-left">
+          <div class="avatar">
+            <svg viewBox="0 0 24 24" width="48" height="48" shape-rendering="crispEdges">
+              <rect x="4" y="2" width="16" height="4" fill="#4C1D95"/>
+              <rect x="3" y="3" width="2" height="6" fill="#4C1D95"/>
+              <rect x="19" y="3" width="2" height="6" fill="#4C1D95"/>
+              <rect x="6" y="6" width="12" height="10" fill="#FCD34D"/>
+              <rect x="8" y="9" width="2" height="2" fill="#1E1B4B" class="blink"/>
+              <rect x="14" y="9" width="2" height="2" fill="#1E1B4B" class="blink"/>
+              <rect x="10" y="13" width="4" height="1" fill="#B45309"/>
+              <rect x="5" y="16" width="14" height="6" fill="#EC4899"/>
+              <rect x="7" y="18" width="10" height="4" fill="#A855F7"/>
+              <rect x="10" y="16" width="4" height="2" fill="#E9D5FF"/>
+            </svg>
+          </div>
+          <div class="greeting"><strong>Good to see you, Aryan!</strong><span>Track today. A better tomorrow.</span></div>
+        </div>
+        <div class="header-right">
+          <div class="date-display" id="dateDisplay">Sep 11, 2026<br>Friday</div>
+          <button class="btn-primary" id="newEntryBtn">+ New entry</button>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="card card-balance"><div class="stat-icon"><svg viewBox="0 0 24 24" width="40" height="40" shape-rendering="crispEdges"><rect x="3" y="6" width="18" height="14" fill="#22D3EE"/><rect x="5" y="4" width="14" height="2" fill="#0891B2"/><rect x="6" y="9" width="5" height="3" fill="#E9D5FF"/><rect x="13" y="9" width="6" height="3" fill="#E9D5FF"/><rect x="6" y="14" width="4" height="3" fill="#E9D5FF"/></svg></div><div class="stat-label">Total balance</div><div class="stat-value" id="totalBalance">₹0</div></div>
+        <div class="card card-income"><div class="stat-icon"><svg viewBox="0 0 24 24" width="40" height="40" shape-rendering="crispEdges"><rect x="9" y="2" width="6" height="2" fill="#34D399"/><rect x="7" y="4" width="10" height="2" fill="#34D399"/><rect x="10" y="6" width="4" height="16" fill="#34D399"/><rect x="8" y="10" width="2" height="4" fill="#059669"/><rect x="14" y="10" width="2" height="4" fill="#059669"/></svg></div><div class="stat-label">Total income</div><div class="stat-value" id="totalIncome">₹0</div></div>
+        <div class="card card-expense"><div class="stat-icon"><svg viewBox="0 0 24 24" width="40" height="40" shape-rendering="crispEdges"><rect x="9" y="20" width="6" height="2" fill="#F87171"/><rect x="7" y="18" width="10" height="2" fill="#F87171"/><rect x="10" y="2" width="4" height="16" fill="#F87171"/><rect x="8" y="10" width="2" height="4" fill="#DC2626"/><rect x="14" y="10" width="2" height="4" fill="#DC2626"/></svg></div><div class="stat-label">Total expenses</div><div class="stat-value" id="totalExpenses">₹0</div></div>
+        <div class="chart-section">
+          <div class="card"><div class="card-title">Expenses by category</div><div class="chart-container"><canvas id="expenseChart"></canvas></div></div>
+          <div class="card"><div class="card-title">Legend</div><div class="chart-legend" id="chartLegend"></div></div>
+        </div>
+        <div class="card budget-card">
+          <div class="card-title">Monthly budget</div>
+          <div class="budget-info"><span id="budgetSpent">₹0 / ₹20,000</span><span id="budgetPercent">0%</span></div>
+          <div class="budget-bar"><div class="budget-fill" id="budgetFill" style="width:0%"></div></div>
+          <div class="budget-mascot">
+            <div class="mascot-avatar">
+              <svg viewBox="0 0 16 16" width="44" height="44" shape-rendering="crispEdges">
+                <rect x="2" y="2" width="3" height="3" fill="#A855F7"/><rect x="11" y="2" width="3" height="3" fill="#A855F7"/>
+                <rect x="3" y="3" width="1" height="2" fill="#EC4899"/><rect x="12" y="3" width="1" height="2" fill="#EC4899"/>
+                <rect x="3" y="5" width="10" height="7" fill="#C084FC"/>
+                <rect x="5" y="7" width="2" height="2" fill="#FBBF24" class="blink"/><rect x="9" y="7" width="2" height="2" fill="#FBBF24" class="blink"/>
+                <rect x="6" y="7" width="1" height="1" fill="#1E1B4B"/><rect x="10" y="7" width="1" height="1" fill="#1E1B4B"/>
+                <rect x="7" y="9" width="2" height="1" fill="#EC4899"/>
+                <rect x="6" y="10" width="1" height="1" fill="#7C3AED"/><rect x="9" y="10" width="1" height="1" fill="#7C3AED"/>
+                <rect x="4" y="12" width="8" height="3" fill="#7C3AED"/>
+                <rect x="12" y="11" width="3" height="2" fill="#A855F7" class="tail"/>
+                <rect x="14" y="9" width="1" height="2" fill="#A855F7"/>
+              </svg>
+            </div>
+            <div class="mascot-text">Keep going!<br>You're doing great! 💜</div>
+          </div>
+        </div>
+        <div class="card transactions-card">
+          <div class="card-header"><h3>Recent transactions</h3><a id="seeAllTx">See all →</a></div>
+          <div class="transaction-list" id="recentTransactions"></div>
+        </div>
+        <div class="card quick-add-card">
+          <div class="card-header"><h3>Quick add</h3><a id="editPresets">Edit presets</a></div>
+          <div class="quick-add-grid" id="quickAddGrid"></div>
+        </div>
+        <div class="card quote-card">
+          <div class="mountain-scene" id="mountainScene"></div>
+          <div class="quote-text">"A budget is a plan for the life you want."</div>
+          <div class="quote-author">— Unknown</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="page" id="page-transactions">
+      <div class="street-scene" id="streetScene"></div>
+      <div class="top-header">
+        <div class="header-left"><h2 style="font-size:16px;color:var(--purple);">Neon Street — Transactions</h2></div>
+        <div class="header-right"><button class="btn-primary" id="newEntryBtnTx">+ New entry</button></div>
+      </div>
+      <div class="filters">
+        <input type="text" id="txSearch" placeholder="Search the street...">
+        <select id="txFilterType"><option value="all">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+        <select id="txFilterCategory"><option value="all">All categories</option></select>
+        <select id="txSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>
+      </div>
+      <div class="card">
+        <table class="tx-table"><thead><tr><th>Name</th><th>Category</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead><tbody id="txTableBody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div class="page" id="page-analytics">
+      <div class="data-lab-scene" id="dataLabScene"></div>
+      <div class="top-header">
+        <div class="header-left"><h2 style="font-size:16px;color:var(--cyan);">Holographic Data Lab — Analytics</h2></div>
+      </div>
+      <div class="analytics-grid">
+        <div class="card"><div class="card-title">Income vs Expenses</div><div class="chart-container"><canvas id="incomeExpenseChart"></canvas></div></div>
+        <div class="card"><div class="card-title">Expense breakdown</div><div class="chart-container"><canvas id="expenseBreakdownChart"></canvas></div></div>
+        <div class="card analytics-full"><div class="card-title">Monthly spending</div><div class="chart-container"><canvas id="monthlySpendingChart"></canvas></div></div>
+        <div class="card analytics-full"><div class="card-title">Financial statistics</div><div id="statsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:8px;"></div></div>
+      </div>
+    </div>
+
+    <!-- BUDGET -->
+    <div class="page" id="page-budget">
+      <div class="mountain-cabin-scene" id="cabinScene"></div>
+      <div class="top-header">
+        <div class="header-left"><h2 style="font-size:16px;color:var(--purple);">Mountain Cabin — Budget</h2></div>
+      </div>
+      <div class="budget-settings">
+        <div class="card">
+          <div class="card-title">Monthly budget</div>
+          <div class="form-group"><label>Total monthly budget (₹)</label><input type="number" id="monthlyBudgetInput" value="20000"></div>
+          <button class="btn-primary" id="saveBudgetBtn" style="margin-top:8px;">Save budget</button>
+        </div>
+        <div class="card"><div class="card-title">Category budgets</div><div id="categoryBudgets"></div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Spending progress</div><div id="budgetProgressList" style="margin-top:8px;"></div></div>
+    </div>
+
+    <!-- DATA -->
+    <div class="page" id="page-data">
+      <div class="archive-scene" id="archiveScene"></div>
+      <div class="top-header">
+        <div class="header-left"><h2 style="font-size:16px;color:var(--cyan);">Computer Archive — Data</h2></div>
+      </div>
+      <div class="data-actions">
+        <button class="data-btn" id="exportJson">📦 Export JSON</button>
+        <button class="data-btn" id="importJson">📥 Import JSON</button>
+        <button class="data-btn" id="exportCsv">📊 Export CSV</button>
+        <button class="data-btn" id="backupData">💾 Backup data</button>
+        <button class="data-btn" id="restoreData">🔄 Restore data</button>
+        <button class="data-btn danger" id="clearData">🗑️ Clear all data</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="workshop-scene" id="workshopScene"></div>
+      <div class="top-header">
+        <div class="header-left"><h2 style="font-size:16px;color:var(--pink);">Workshop — Settings</h2></div>
+      </div>
+      <div class="card">
+        <div class="card-title">App settings</div>
+        <div class="form-group"><label>Display name</label><input type="text" id="settingsName" value="Aryan"></div>
+        <div class="form-group"><label>Currency</label><select id="settingsCurrency"><option value="INR">₹ INR</option><option value="USD">$ USD</option><option value="EUR">€ EUR</option></select></div>
+        <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px;">Save settings</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- SHORTCUTS SUBMENU -->
+<div class="shortcuts-panel" id="shortcutsPanel">
+  <div class="shortcuts-header">
+    <h4>⌨ Shortcuts</h4>
+    <button class="shortcuts-close" id="shortcutsClose" aria-label="Close">✕</button>
+  </div>
+  <div class="shortcuts-list">
+    <div class="shortcut-row" style="animation-delay:0.02s"><div class="shortcut-keys"><span class="shortcut-key">N</span></div><span class="shortcut-desc">New entry</span></div>
+    <div class="shortcut-row" style="animation-delay:0.04s"><div class="shortcut-keys"><span class="shortcut-key">D</span></div><span class="shortcut-desc">Dashboard</span></div>
+    <div class="shortcut-row" style="animation-delay:0.06s"><div class="shortcut-keys"><span class="shortcut-key">T</span></div><span class="shortcut-desc">Transactions</span></div>
+    <div class="shortcut-row" style="animation-delay:0.08s"><div class="shortcut-keys"><span class="shortcut-key">A</span></div><span class="shortcut-desc">Analytics</span></div>
+    <div class="shortcut-row" style="animation-delay:0.10s"><div class="shortcut-keys"><span class="shortcut-key">B</span></div><span class="shortcut-desc">Budget</span></div>
+    <div class="shortcut-row" style="animation-delay:0.12s"><div class="shortcut-keys"><span class="shortcut-key">ESC</span></div><span class="shortcut-desc">Close modal</span></div>
+    <div class="shortcut-row" style="animation-delay:0.14s"><div class="shortcut-keys"><span class="shortcut-key">CTRL</span><span class="shortcut-key">E</span></div><span class="shortcut-desc">Export JSON</span></div>
+  </div>
+  <div class="shortcuts-footer">Press ESC to close</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">New transaction</h2>
+    <div class="type-toggle">
+      <button class="active income" data-type="income" id="typeIncome">Income</button>
+      <button class="expense" data-type="expense" id="typeExpense">Expense</button>
+    </div>
+    <form id="txForm">
+      <div class="form-group"><label>Amount (₹)</label><input type="number" id="txAmount" required min="0" step="1" placeholder="0"></div>
+      <div class="form-group"><label>Description</label><input type="text" id="txDescription" required placeholder="e.g. Coffee"></div>
+      <div class="form-group"><label>Category</label><select id="txCategory" required></select></div>
+      <div class="form-group"><label>Date</label><input type="date" id="txDate" required></div>
+      <div class="form-group"><label>Notes (optional)</label><textarea id="txNotes"></textarea></div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="modalCancel">Cancel</button><button type="submit" class="btn-submit" id="modalSubmit">Add transaction</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- CLEAR MODAL -->
+<div class="modal-overlay" id="clearModal">
+  <div class="modal" style="max-width:400px;">
+    <h2 style="color:var(--red);">⚠ Clear all data</h2>
+    <p style="color:var(--text-dim);margin-bottom:12px;">This will permanently delete all transactions, budgets, and settings. Enter password to confirm.</p>
+    <div class="form-group"><label>Password</label><input type="password" id="clearPassword"></div>
+    <div class="modal-actions"><button type="button" class="btn-cancel" id="clearCancel">Cancel</button><button type="button" class="btn-submit" id="clearConfirm" style="background:linear-gradient(135deg,var(--red-dim),var(--red));border-color:var(--red);">Confirm</button></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const STORAGE_KEY='ledger_data',BUDGET_KEY='ledger_budgets',SETTINGS_KEY='ledger_settings';
+function loadData(){try{const r=localStorage.getItem(STORAGE_KEY);if(r)return JSON.parse(r)}catch(e){}return{transactions:[]}}
+function loadBudgets(){try{const r=localStorage.getItem(BUDGET_KEY);if(r)return JSON.parse(r)}catch(e){}return{total:20000,categories:{}}}
+function loadSettings(){try{const r=localStorage.getItem(SETTINGS_KEY);if(r)return JSON.parse(r)}catch(e){}return{darkMode:true,presets:[],displayName:'Aryan',currency:'INR'}}
+function saveData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
+function saveBudgets(b){localStorage.setItem(BUDGET_KEY,JSON.stringify(b))}
+function saveSettings(s){localStorage.setItem(SETTINGS_KEY,JSON.stringify(s))}
+
+let state={transactions:[],budgets:{total:20000,categories:{}},settings:{darkMode:true,presets:[],displayName:'Aryan',currency:'INR'},editingId:null,txType:'income'};
+const CATEGORIES=[{name:'Food',icon:'coffee'},{name:'Transport',icon:'transport'},{name:'Shopping',icon:'shopping'},{name:'Bills',icon:'bills'},{name:'Entertainment',icon:'entertainment'},{name:'Health',icon:'health'},{name:'Education',icon:'education'},{name:'Other',icon:'other'},{name:'Income',icon:'payment'}];
+
+const ICONS={
+coffee:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="3" y="4" width="10" height="8" fill="#F87171"/><rect x="4" y="5" width="8" height="6" fill="#FCA5A5"/><rect x="5" y="6" width="6" height="4" fill="#DC2626"/><rect x="13" y="6" width="2" height="3" fill="#F87171"/><rect x="2" y="12" width="12" height="1" fill="#FCA5A5"/><rect x="4" y="2" width="1" height="2" fill="#FCA5A5" class="steam"/><rect x="7" y="1" width="1" height="3" fill="#FCA5A5" class="steam" style="animation-delay:0.3s"/><rect x="10" y="2" width="1" height="2" fill="#FCA5A5" class="steam" style="animation-delay:0.6s"/></svg>`,
+transport:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="6" width="12" height="6" fill="#22D3EE"/><rect x="3" y="7" width="10" height="4" fill="#67E8F9"/><rect x="4" y="5" width="8" height="1" fill="#0891B2"/><rect x="4" y="11" width="2" height="2" fill="#1E1B4B"/><rect x="10" y="11" width="2" height="2" fill="#1E1B4B"/><rect x="3" y="8" width="2" height="2" fill="#E9D5FF" class="headlight"/></svg>`,
+shopping:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="3" y="4" width="10" height="8" fill="#A855F7" class="bag-bounce"/><rect x="4" y="5" width="8" height="6" fill="#C084FC"/><rect x="4" y="2" width="2" height="2" fill="#E9D5FF"/><rect x="10" y="2" width="2" height="2" fill="#E9D5FF"/><rect x="5" y="7" width="6" height="1" fill="#7C3AED"/></svg>`,
+bills:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="4" y="2" width="8" height="12" fill="#34D399"/><rect x="5" y="3" width="6" height="10" fill="#A7F3D0"/><rect x="6" y="4" width="4" height="2" fill="#059669"/><rect x="6" y="7" width="4" height="2" fill="#059669"/><rect x="6" y="10" width="4" height="2" fill="#059669"/></svg>`,
+entertainment:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="5" width="12" height="8" fill="#FBBF24"/><rect x="3" y="6" width="10" height="6" fill="#FDE68A"/><rect x="4" y="4" width="2" height="1" fill="#D97706"/><rect x="10" y="4" width="2" height="1" fill="#D97706"/><rect x="4" y="7" width="2" height="2" fill="#D97706" class="controller-blink"/></svg>`,
+health:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="3" y="3" width="10" height="10" fill="#F87171" class="heart-pulse"/><rect x="4" y="4" width="8" height="8" fill="#FCA5A5"/><rect x="7" y="5" width="2" height="6" fill="#DC2626"/><rect x="5" y="7" width="6" height="2" fill="#DC2626"/></svg>`,
+education:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="2" y="5" width="12" height="8" fill="#818CF8" class="edu-bounce"/><rect x="3" y="6" width="10" height="6" fill="#C7D2FE"/><rect x="7" y="1" width="2" height="4" fill="#4F46E5"/><rect x="6" y="3" width="4" height="2" fill="#E9D5FF"/></svg>`,
+other:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="3" y="3" width="10" height="10" fill="#9CA3AF"/><rect x="4" y="4" width="8" height="8" fill="#D1D5DB"/><rect x="6" y="6" width="4" height="4" fill="#6B7280"/></svg>`,
+payment:`<svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><rect x="7" y="2" width="2" height="12" fill="#34D399"/><rect x="5" y="4" width="6" height="2" fill="#34D399"/><rect x="4" y="7" width="8" height="2" fill="#34D399"/><rect x="3" y="10" width="10" height="2" fill="#34D399"/></svg>`
+};
+function getCategoryIconSvg(c){const cat=CATEGORIES.find(x=>x.name===c);return cat&&ICONS[cat.icon]?ICONS[cat.icon]:ICONS.other}
+function getCategoryColor(c){const m={Food:'#F472B6',Transport:'#22D3EE',Shopping:'#A855F7',Bills:'#34D399',Entertainment:'#FBBF24',Health:'#F87171',Education:'#818CF8',Other:'#9CA3AF',Income:'#34D399'};return m[c]||'#9CA3AF'}
+
+function init(){
+  state.transactions=loadData().transactions||[];
+  state.budgets=loadBudgets();
+  state.settings=Object.assign({darkMode:true,presets:[],displayName:'Aryan',currency:'INR'},loadSettings());
+
+  if(!state.settings.presets||state.settings.presets.length===0){
+    state.settings.presets=[{name:'Coffee',amount:150,category:'Food'},{name:'Auto/Cab',amount:200,category:'Transport'},{name:'Groceries',amount:800,category:'Food'},{name:'Recharge',amount:300,category:'Bills'}];
+    saveSettings(state.settings);
+  }
+  if(state.transactions.length===0){
+    const today=new Date();const d=o=>{const dt=new Date(today);dt.setDate(dt.getDate()-o);return dt.toISOString().split('T')[0]};
+    state.transactions=[
+      {id:uid(),type:'expense',amount:150,description:'Coffee',category:'Food',date:d(0),notes:''},
+      {id:uid(),type:'expense',amount:320,description:'Uber Ride',category:'Transport',date:d(1),notes:''},
+      {id:uid(),type:'income',amount:2500,description:'Freelance Payment',category:'Income',date:d(1),notes:''},
+      {id:uid(),type:'expense',amount:1200,description:'Zudio',category:'Shopping',date:d(2),notes:''},
+      {id:uid(),type:'expense',amount:499,description:'Netflix',category:'Entertainment',date:d(3),notes:''}
+    ];
+    saveData({transactions:state.transactions});
+  }
+
+  applyTheme();
+  generateSkyline();
+  generateSidebarScene();
+  generateMountainScene();
+  generateStreetScene();
+  generateDataLabScene();
+  generateCabinScene();
+  generateArchiveScene();
+  generateWorkshopScene();
+  initParticleSystem();
+  renderAll();
+  document.getElementById('txDate').value=new Date().toISOString().split('T')[0];
+
+  setupNav();setupModal();setupFilters();setupDataActions();setupBudgetPage();setupKeyboardShortcuts();updateDate();
+  window.addEventListener('resize',()=>{if(window.Chart)Object.values(Chart.instances).forEach(c=>c.resize())});
+}
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function formatCurrency(n){return '₹'+Number(n).toLocaleString('en-IN')}
+function formatDate(s){if(!s)return '';const d=new Date(s+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[d.getMonth()]+' '+d.getDate()}
+function updateDate(){const n=new Date();const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const el=document.getElementById('dateDisplay');if(el)el.innerHTML=`${m[n.getMonth()]} ${n.getDate()}, ${n.getFullYear()}<br>${days[n.getDay()]}`}
+function showToast(msg,type='success'){const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},2500)}
+function escapeHtml(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+
+function getStats(){const t=state.transactions;const i=t.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);const e=t.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);return{income:i,expenses:e,balance:i-e,total:i+e}}
+function getCategoryBreakdown(){const e=state.transactions.filter(t=>t.type==='expense');const total=e.reduce((s,t)=>s+t.amount,0);const m={};e.forEach(t=>{m[t.category]=(m[t.category]||0)+t.amount});const sorted=Object.entries(m).map(([name,amount])=>({name,amount,pct:total>0?amount/total*100:0})).sort((a,b)=>b.amount-a.amount);return{breakdown:sorted,total}}
+function getRecentTransactions(l=5){return [...state.transactions].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,l)}
+
+/* SCENES */
+function generateSkyline(){
+  const c=document.getElementById('skylineContainer');if(!c)return;let h='';
+  h+=`<div class="skyline-layer"><div class="moon"></div></div>`;
+  for(let i=0;i<3;i++)h+=`<div class="skyline-layer"><div class="cloud-drift" style="top:${8+i*12}px;width:${30+i*15}px;height:${4+i}px;animation-delay:${i*8}s;animation-duration:${20+i*5}s"></div></div>`;
+  const bldgs=[{x:0,w:30,h:60},{x:35,w:25,h:45},{x:65,w:40,h:75},{x:110,w:20,h:35},{x:135,w:35,h:55},{x:175,w:45,h:85},{x:225,w:25,h:40},{x:255,w:30,h:65},{x:290,w:40,h:50},{x:335,w:25,h:70},{x:365,w:35,h:45},{x:405,w:30,h:60},{x:440,w:35,h:55},{x:480,w:28,h:70},{x:515,w:40,h:45}];
+  let bh='';bldgs.forEach(b=>{bh+=`<div class="bldg" style="left:${b.x}px;width:${b.w}px;height:${b.h}px">`;for(let y=4;y<b.h-6;y+=8)for(let x=4;x<b.w-4;x+=6){const r=Math.random();let cls='win ';if(r>.7)cls+='on';else if(r>.5)cls+='pink';else if(r>.4)cls+='cyan';else cls+='off';if(Math.random()>.7)cls+=' flicker';bh+=`<div class="${cls}" style="left:${x}px;top:${y}px;animation-delay:${Math.random()*3}s"></div>`}bh+=`</div>`});
+  h+=`<div class="skyline-layer">${bh}</div>`;
+  let nh='';[{x:50,y:30,c:'#EC4899'},{x:150,y:20,c:'#22D3EE'},{x:250,y:35,c:'#FBBF24'},{x:350,y:25,c:'#A855F7'},{x:450,y:30,c:'#EC4899'}].forEach(n=>{nh+=`<div class="neon" style="left:${n.x}px;top:${n.y}px;background:${n.c};box-shadow:0 0 4px ${n.c}"></div>`});
+  h+=`<div class="skyline-layer">${nh}</div>`;
+  let lh='';for(let i=0;i<5;i++)lh+=`<div class="moving-light" style="top:${20+Math.random()*40}px;animation-delay:${i*4}s;animation-duration:${12+i*3}s"></div>`;
+  h+=`<div class="skyline-layer">${lh}</div>`;
+  c.innerHTML=h;
+}
+function generateSidebarScene(){/* sidebar has no scene container in this build, skip */}
+function generateMountainScene(){
+  const c=document.getElementById('mountainScene');if(!c)return;let h='';
+  for(let i=0;i<25;i++)h+=`<div class="star" style="left:${Math.random()*100}%;top:${Math.random()*50}%;animation-delay:${Math.random()*3}s"></div>`;
+  for(let i=0;i<3;i++)h+=`<div class="cloud" style="top:${10+i*15}%;width:${25+i*10}px;height:${3+i}px;animation-delay:${i*8}s;animation-duration:${25+i*8}s"></div>`;
+  h+=`<div class="mountain-2"></div><div class="mountain"></div>`;
+  h+=`<div class="city-lights">`;const cols=['yellow','pink','cyan'];for(let i=0;i<18;i++)h+=`<div class="light ${cols[i%3]}" style="animation-delay:${Math.random()*2}s"></div>`;h+=`</div>`;
+  c.innerHTML=h;
+}
+function generateStreetScene(){
+  const c=document.getElementById('streetScene');if(!c)return;let h='';
+  h+=`<div class="rain-layer" id="rainLayer"></div>`;
+  const shops=[{x:10,w:60,c:'#EC4899'},{x:90,w:55,c:'#22D3EE'},{x:170,w:70,c:'#A855F7'},{x:260,w:60,c:'#FBBF24'},{x:340,w:55,c:'#EC4899'},{x:410,w:70,c:'#22D3EE'},{x:500,w:60,c:'#A855F7'}];
+  shops.forEach((s,i)=>{h+=`<div class="shop" style="left:${s.x}px;width:${s.w}px;height:${50+(i%3)*10}px"><div class="awning"></div><div class="shop-window"></div><div class="neon-sign" style="background:${s.c};box-shadow:0 0 6px ${s.c};animation-delay:${i*.3}s"></div></div>`});
+  for(let i=0;i<5;i++)h+=`<div class="lamp" style="left:${80+i*110}px"></div>`;
+  for(let i=0;i<2;i++)h+=`<div class="car" style="animation-delay:${i*4}s;bottom:${8+i*3}px;background:${i?'#EC4899':'#22D3EE'};border-color:${i?'#BE185D':'#0891B2'};animation-name:carDrive"></div>`;
+  h+=`<div class="road"></div>`;
+  for(let i=0;i<3;i++)h+=`<div class="steam" style="left:${100+i*150}px;animation-delay:${i*1}s"></div>`;
+  for(let i=0;i<2;i++)h+=`<div class="pedestrian" style="animation-delay:${i*6}s"></div>`;
+  c.innerHTML=h;
+  const rl=document.getElementById('rainLayer');if(rl){let d='';for(let i=0;i<40;i++)d+=`<div class="raindrop" style="left:${Math.random()*100}%;animation-delay:${Math.random()*2}s;animation-duration:${.8+Math.random()*.8}s"></div>`;rl.innerHTML=d}
+}
+function generateDataLabScene(){
+  const c=document.getElementById('dataLabScene');if(!c)return;let h='';
+  h+=`<div class="holo-screen" style="top:15px;left:20px;width:80px;height:50px"></div>`;
+  h+=`<div class="holo-screen" style="top:25px;left:120px;width:60px;height:40px;animation-delay:.5s"></div>`;
+  h+=`<div class="holo-screen" style="top:10px;right:30px;width:90px;height:60px;animation-delay:1s"></div>`;
+  for(let i=0;i<5;i++)h+=`<div class="holo-bar" style="left:${25+i*12}px;bottom:70px;width:8px;height:${10+Math.random()*30}px;animation-delay:${i*.2}s"></div>`;
+  h+=`<div class="scan-line"></div>`;
+  for(let i=0;i<20;i++)h+=`<div class="data-particle" style="left:${Math.random()*100}%;bottom:${Math.random()*80}px;animation-delay:${Math.random()*5}s"></div>`;
+  h+=`<div class="terminal"><div class="cursor"></div></div>`;
+  h+=`<div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(34,211,238,.05) 19px,rgba(34,211,238,.05) 20px),repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(34,211,238,.05) 19px,rgba(34,211,238,.05) 20px);pointer-events:none"></div>`;
+  c.innerHTML=h;
+}
+function generateCabinScene(){
+  const c=document.getElementById('cabinScene');if(!c)return;let h='';
+  h+=`<div class="stars">`;for(let i=0;i<30;i++)h+=`<div class="star" style="left:${Math.random()*100}%;top:${Math.random()*50}%;animation-delay:${Math.random()*3}s"></div>`;h+=`</div>`;
+  h+=`<div class="mtn-far"></div><div class="mtn-near"></div><div class="ground"></div>`;
+  for(let i=0;i<6;i++){const x=30+i*70+(i%2)*20;h+=`<div class="tree" style="left:${x}px"><div class="leaf"></div></div>`}
+  h+=`<div class="cabin"><div class="win"></div><div class="win-2"></div><div class="door"></div></div><div class="chimney"></div>`;
+  for(let i=0;i<3;i++)h+=`<div class="smoke" style="animation-delay:${i*1.3}s"></div>`;
+  h+=`<div class="campfire"></div><div class="fire"></div>`;
+  for(let i=0;i<6;i++)h+=`<div class="firefly" style="left:${20+Math.random()*80}%;bottom:${30+Math.random()*40}px;animation-delay:${Math.random()*6}s"></div>`;
+  h+=`<div class="companion"><svg viewBox="0 0 16 16" width="20" height="20" shape-rendering="crispEdges"><rect x="2" y="3" width="2" height="2" fill="#A855F7"/><rect x="12" y="3" width="2" height="2" fill="#A855F7"/><rect x="3" y="5" width="10" height="7" fill="#C084FC"/><rect x="5" y="7" width="2" height="2" fill="#FBBF24" class="eye"/><rect x="9" y="7" width="2" height="2" fill="#FBBF24" class="eye"/><rect x="6" y="7" width="1" height="1" fill="#1E1B4B"/><rect x="10" y="7" width="1" height="1" fill="#1E1B4B"/><rect x="7" y="9" width="2" height="1" fill="#EC4899"/><rect x="4" y="12" width="8" height="3" fill="#7C3AED"/><rect x="12" y="10" width="3" height="2" fill="#A855F7" class="tail"/></svg></div>`;
+  c.innerHTML=h;
+}
+function generateArchiveScene(){
+  const c=document.getElementById('archiveScene');if(!c)return;let h='';
+  for(let i=0;i<3;i++){const x=20+i*90;h+=`<div class="server" style="left:${x}px">`;for(let j=0;j<8;j++)h+=`<div class="led" style="top:${10+j*11}px;animation-delay:${Math.random()*1.5}s"></div>`;for(let j=0;j<4;j++)h+=`<div class="grill" style="top:${30+j*20}px"></div>`;h+=`</div>`}
+  h+=`<div class="crt" style="left:320px"><div class="text"></div></div>`;
+  h+=`<div class="crt" style="left:400px"><div class="text" style="animation-delay:.5s"></div></div>`;
+  for(let i=0;i<3;i++)h+=`<div class="floppy" style="left:${480+i*35}px"><div class="spin" style="animation-delay:${i*.3}s"></div></div>`;
+  h+=`<div class="scan-line-h"></div><div class="terminal-text">&gt; SYSTEM READY</div>`;
+  c.innerHTML=h;
+}
+function generateWorkshopScene(){
+  const c=document.getElementById('workshopScene');if(!c)return;let h='';
+  h+=`<div class="bench"></div>`;
+  h+=`<div class="tool wrench" style="left:30px"></div><div class="tool screwdriver" style="left:60px"></div><div class="tool wrench" style="left:90px"></div>`;
+  h+=`<div class="circuit"></div>`;
+  h+=`<div class="robot"><svg viewBox="0 0 16 16" width="24" height="28" shape-rendering="crispEdges"><rect x="6" y="0" width="4" height="2" fill="#22D3EE" class="antenna"/><rect x="7" y="2" width="2" height="2" fill="#22D3EE"/><rect x="3" y="4" width="10" height="10" fill="#A855F7"/><rect x="4" y="5" width="8" height="8" fill="#C084FC"/><rect x="5" y="7" width="2" height="2" fill="#FBBF24" class="eye"/><rect x="9" y="7" width="2" height="2" fill="#FBBF24" class="eye"/><rect x="6" y="11" width="4" height="1" fill="#1E1B4B"/><rect x="5" y="14" width="6" height="3" fill="#7C3AED"/></svg></div>`;
+  for(let i=0;i<3;i++)h+=`<div class="spark" style="left:${50+i*60}px;bottom:40px;animation-delay:${i*.5}s"></div>`;
+  h+=`<div class="lamp-w" style="left:20px"></div><div class="lamp-w" style="left:100px;animation-delay:1s"></div><div class="lamp-w" style="right:30px;animation-delay:2s"></div>`;
+  h+=`<div class="poster">LEDGER</div>`;
+  c.innerHTML=h;
+}
+
+let particleCtx,particles=[],lastFrame=0;
+function initParticleSystem(){
+  const canvas=document.getElementById('particleCanvas');if(!canvas)return;
+  particleCtx=canvas.getContext('2d');
+  function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
+  resize();window.addEventListener('resize',resize);
+  const count=Math.min(50,Math.floor(window.innerWidth/25));
+  for(let i=0;i<count;i++)particles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,size:Math.random()>.7?2:1,speedX:(Math.random()-.5)*.15,speedY:-Math.random()*.2-.05,opacity:Math.random()*.5+.2,color:['#A855F7','#EC4899','#22D3EE','#E9D5FF'][Math.floor(Math.random()*4)]});
+  function animate(t){requestAnimationFrame(animate);if(document.hidden)return;if(t-lastFrame<33)return;lastFrame=t;particleCtx.clearRect(0,0,canvas.width,canvas.height);particles.forEach(p=>{p.x+=p.speedX;p.y+=p.speedY;if(p.y<-10){p.y=canvas.height+10;p.x=Math.random()*canvas.width}if(p.x<-10)p.x=canvas.width+10;if(p.x>canvas.width+10)p.x=-10;particleCtx.globalAlpha=p.opacity;particleCtx.fillStyle=p.color;particleCtx.fillRect(Math.floor(p.x),Math.floor(p.y),p.size,p.size)});particleCtx.globalAlpha=1}
+  animate(0);
+}
+
+function renderAll(){renderSummary();renderRecentTransactions();renderChart();renderLegend();renderBudget();renderQuickAdd();renderTransactionsPage();renderAnalytics();renderBudgetPage();populateCategorySelect()}
+function renderSummary(){const s=getStats();document.getElementById('totalBalance').textContent=formatCurrency(s.balance);document.getElementById('totalIncome').textContent=formatCurrency(s.income);document.getElementById('totalExpenses').textContent=formatCurrency(s.expenses)}
+function renderRecentTransactions(){
+  const c=document.getElementById('recentTransactions');const txs=getRecentTransactions(5);
+  if(txs.length===0){c.innerHTML=`<div class="empty-state"><div class="empty-scene street-empty"></div>No transactions yet — the street is quiet.</div>`;return}
+  c.innerHTML=txs.map(t=>{const inc=t.type==='income';const sign=inc?'+':'-';const color=getCategoryColor(t.category);return `<div class="transaction-item" data-id="${t.id}"><div class="tx-icon" style="color:${color}">${getCategoryIconSvg(t.category)}</div><div class="tx-info"><div class="tx-name">${escapeHtml(t.description)}</div><div class="tx-category">${escapeHtml(t.category)}</div></div><div class="tx-right"><div class="tx-amount ${inc?'income':'expense'}">${sign}${formatCurrency(t.amount)}</div><div class="tx-date">${formatDate(t.date)}</div></div></div>`}).join('');
+  c.querySelectorAll('.transaction-item').forEach(el=>el.addEventListener('click',()=>openEditModal(el.dataset.id)));
+}
+let expenseChartInstance=null;
+function renderChart(){
+  const{breakdown}=getCategoryBreakdown();const ctx=document.getElementById('expenseChart');if(!ctx)return;
+  if(expenseChartInstance)expenseChartInstance.destroy();
+  if(breakdown.length===0){ctx.parentElement.innerHTML='<div class="empty-state" style="height:200px;display:flex;align-items:center;justify-content:center;flex-direction:column"><div class="empty-scene terminal-empty" style="width:100%;max-width:200px"></div>No expense data</div>';return}
+  const labels=breakdown.map(b=>b.name);const data=breakdown.map(b=>b.amount);const colors=breakdown.map(b=>getCategoryColor(b.name));
+  expenseChartInstance=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors.map(c=>c+'CC'),borderColor:colors,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800,easing:'easeOutQuart'},plugins:{legend:{display:false},tooltip:{backgroundColor:'#0F0B26',borderColor:'#A855F7',borderWidth:2,titleFont:{family:'VT323',size:16},bodyFont:{family:'VT323',size:14},callbacks:{label:c=>formatCurrency(c.raw)}}},scales:{x:{ticks:{color:'#A78BFA',font:{family:'VT323',size:14}},grid:{color:'rgba(168,85,247,0.08)'}},y:{beginAtZero:true,ticks:{color:'#A78BFA',font:{family:'VT323',size:12},callback:v=>'₹'+v.toLocaleString('en-IN')},grid:{color:'rgba(168,85,247,0.08)'}}}}});
+}
+function renderLegend(){const{breakdown,total}=getCategoryBreakdown();const c=document.getElementById('chartLegend');if(breakdown.length===0){c.innerHTML='<div style="color:var(--text-muted);font-size:14px">No data</div>';return}c.innerHTML=breakdown.map(b=>{const color=getCategoryColor(b.name);const pct=total>0?(b.amount/total*100).toFixed(0):0;return `<div class="legend-item"><div class="legend-left"><div class="legend-dot" style="background:${color};border-color:${color}"></div><span>${escapeHtml(b.name)}</span></div><span style="color:var(--text-muted)">${pct}%</span></div>`}).join('')}
+function renderBudget(){
+  const s=getStats();const total=state.budgets.total||20000;const spent=s.expenses;const pct=total>0?Math.min(spent/total*100,100):0;
+  document.getElementById('budgetSpent').textContent=`${formatCurrency(spent)} / ${formatCurrency(total)}`;
+  document.getElementById('budgetPercent').textContent=Math.round(pct)+'%';
+  document.getElementById('budgetFill').style.width=pct+'%';
+  const fill=document.getElementById('budgetFill');
+  if(pct>=90)fill.style.background='linear-gradient(90deg,#DC2626,#F87171)';else if(pct>=70)fill.style.background='linear-gradient(90deg,#D97706,#FBBF24)';else fill.style.background='linear-gradient(90deg,var(--purple-dim),var(--pink))';
+}
+function renderQuickAdd(){
+  const g=document.getElementById('quickAddGrid');const presets=state.settings.presets||[];
+  if(presets.length===0){g.innerHTML='<div style="color:var(--text-muted);font-size:14px;grid-column:1/-1">No presets.</div>';return}
+  g.innerHTML=presets.map((p,i)=>`<div class="quick-add-btn" data-index="${i}"><span class="qa-icon">${getCategoryIconSvg(p.category)}</span><span>${escapeHtml(p.name)}</span><span class="qa-price">₹${p.amount}</span></div>`).join('');
+  g.querySelectorAll('.quick-add-btn').forEach(b=>b.addEventListener('click',()=>{const preset=presets[parseInt(b.dataset.index)];if(!preset)return;state.transactions.push({id:uid(),type:'expense',amount:preset.amount,description:preset.name,category:preset.category,date:new Date().toISOString().split('T')[0],notes:'Quick add'});saveData({transactions:state.transactions});renderAll();showToast('Transaction added successfully')}));
+}
+function renderTransactionsPage(){
+  populateCategoryFilter();const tbody=document.getElementById('txTableBody');if(!tbody)return;
+  let txs=[...state.transactions];
+  const search=(document.getElementById('txSearch')?.value||'').toLowerCase();
+  if(search)txs=txs.filter(t=>t.description.toLowerCase().includes(search)||t.category.toLowerCase().includes(search));
+  const ft=document.getElementById('txFilterType')?.value||'all';if(ft!=='all')txs=txs.filter(t=>t.type===ft);
+  const fc=document.getElementById('txFilterCategory')?.value||'all';if(fc!=='all')txs=txs.filter(t=>t.category===fc);
+  const sort=document.getElementById('txSort')?.value||'newest';txs.sort((a,b)=>{const da=new Date(a.date),db=new Date(b.date);return sort==='newest'?db-da:da-db});
+  if(txs.length===0){tbody.innerHTML='<tr><td colspan="5" style="padding:0"><div class="empty-state"><div class="empty-scene search-empty"></div>No transactions found on this street.</div></td></tr>';return}
+  tbody.innerHTML=txs.map(t=>{const inc=t.type==='income';const color=getCategoryColor(t.category);return `<tr><td><div style="display:flex;align-items:center;gap:8px"><span style="color:${color}">${getCategoryIconSvg(t.category)}</span><span>${escapeHtml(t.description)}</span></div></td><td style="color:${color}">${escapeHtml(t.category)}</td><td style="color:${inc?'var(--green)':'var(--red)'};font-family:'Press Start 2P',monospace;font-size:11px">${inc?'+':'-'}${formatCurrency(t.amount)}</td><td>${formatDate(t.date)}</td><td><div class="tx-actions"><button onclick="editTransaction('${t.id}')">✎</button><button class="delete" onclick="deleteTransaction('${t.id}')">✕</button></div></td></tr>`}).join('');
+}
+function populateCategoryFilter(){const sel=document.getElementById('txFilterCategory');if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="all">All categories</option>'+CATEGORIES.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');sel.value=cur||'all'}
+function populateCategorySelect(){const sel=document.getElementById('txCategory');if(!sel)return;sel.innerHTML=CATEGORIES.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}
+
+window.editTransaction=id=>openEditModal(id);
+window.deleteTransaction=id=>{if(!confirm('Delete this transaction?'))return;const el=document.querySelector(`.transaction-item[data-id="${id}"]`);if(el){el.classList.add('removing');setTimeout(()=>{state.transactions=state.transactions.filter(t=>t.id!==id);saveData({transactions:state.transactions});renderAll();showToast('Transaction deleted')},300)}else{state.transactions=state.transactions.filter(t=>t.id!==id);saveData({transactions:state.transactions});renderAll();showToast('Transaction deleted')}};
+
+function setupModal(){
+  const overlay=document.getElementById('modalOverlay');
+  document.getElementById('newEntryBtn').addEventListener('click',openNewModal);
+  document.getElementById('newEntryBtnTx').addEventListener('click',openNewModal);
+  document.getElementById('modalCancel').addEventListener('click',closeModal);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal()});
+  document.getElementById('typeIncome').addEventListener('click',()=>setTxType('income'));
+  document.getElementById('typeExpense').addEventListener('click',()=>setTxType('expense'));
+  document.getElementById('txForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const amount=parseFloat(document.getElementById('txAmount').value);
+    const description=document.getElementById('txDescription').value.trim();
+    const category=document.getElementById('txCategory').value;
+    const date=document.getElementById('txDate').value;
+    const notes=document.getElementById('txNotes').value.trim();
+    if(!amount||amount<=0){showToast('Please enter a valid amount','error');return}
+    if(!description){showToast('Please enter a description','error');return}
+    if(!date){showToast('Please select a date','error');return}
+    if(state.editingId){const i=state.transactions.findIndex(t=>t.id===state.editingId);if(i>-1)state.transactions[i]={...state.transactions[i],type:state.txType,amount,description,category,date,notes};showToast('Transaction updated')}
+    else{state.transactions.push({id:uid(),type:state.txType,amount,description,category,date,notes});showToast('Transaction added successfully')}
+    saveData({transactions:state.transactions});closeModal();renderAll();
+  });
+}
+function openNewModal(){state.editingId=null;state.txType='income';document.getElementById('modalTitle').textContent='New transaction';document.getElementById('modalSubmit').textContent='Add transaction';document.getElementById('txForm').reset();document.getElementById('txDate').value=new Date().toISOString().split('T')[0];setTxType('income');populateCategorySelect();document.getElementById('modalOverlay').classList.add('open')}
+function openEditModal(id){const tx=state.transactions.find(t=>t.id===id);if(!tx)return;state.editingId=id;state.txType=tx.type;document.getElementById('modalTitle').textContent='Edit transaction';document.getElementById('modalSubmit').textContent='Update transaction';document.getElementById('txAmount').value=tx.amount;document.getElementById('txDescription').value=tx.description;document.getElementById('txDate').value=tx.date;document.getElementById('txNotes').value=tx.notes||'';populateCategorySelect();document.getElementById('txCategory').value=tx.category;setTxType(tx.type);document.getElementById('modalOverlay').classList.add('open')}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');state.editingId=null}
+function setTxType(type){state.txType=type;document.getElementById('typeIncome').classList.toggle('active',type==='income');document.getElementById('typeExpense').classList.toggle('active',type==='expense');const sel=document.getElementById('txCategory');if(type==='income')sel.value='Income';else if(sel.value==='Income')sel.value='Food'}
+
+function setupNav(){
+  document.querySelectorAll('.nav-item').forEach(i=>i.addEventListener('click',()=>{switchPage(i.dataset.page);document.getElementById('sidebar').classList.remove('open')}));
+  document.getElementById('seeAllTx').addEventListener('click',()=>switchPage('transactions'));
+  document.getElementById('mobileMenuBtn').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('open'));
+  document.addEventListener('click',e=>{const s=document.getElementById('sidebar');const b=document.getElementById('mobileMenuBtn');if(window.innerWidth<=768&&s.classList.contains('open')){if(!s.contains(e.target)&&e.target!==b&&!b.contains(e.target))s.classList.remove('open')}});
+}
+function switchPage(page){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page)?.classList.add('active');
+  if(page==='transactions')renderTransactionsPage();
+  if(page==='analytics')renderAnalytics();
+  if(page==='budget')renderBudgetPage();
+}
+function setupFilters(){['txSearch','txFilterType','txFilterCategory','txSort'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',renderTransactionsPage);el.addEventListener('change',renderTransactionsPage)}})}
+
+let analyticsCharts={};
+function renderAnalytics(){
+  const s=getStats();
+  const ctx1=document.getElementById('incomeExpenseChart');
+  if(ctx1){if(analyticsCharts.ie)analyticsCharts.ie.destroy();analyticsCharts.ie=new Chart(ctx1,{type:'doughnut',data:{labels:['Income','Expenses'],datasets:[{data:[s.income,s.expenses],backgroundColor:['#34D399CC','#F87171CC'],borderColor:['#34D399','#F87171'],borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{labels:{color:'#22D3EE',font:{family:'VT323',size:14}}}}}})}
+  const{breakdown}=getCategoryBreakdown();
+  const ctx2=document.getElementById('expenseBreakdownChart');
+  if(ctx2){if(analyticsCharts.eb)analyticsCharts.eb.destroy();analyticsCharts.eb=new Chart(ctx2,{type:'doughnut',data:{labels:breakdown.map(b=>b.name),datasets:[{data:breakdown.map(b=>b.amount),backgroundColor:breakdown.map(b=>getCategoryColor(b.name)+'CC'),borderColor:breakdown.map(b=>getCategoryColor(b.name)),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{position:'right',labels:{color:'#22D3EE',font:{family:'VT323',size:13}}}}}})}
+  const months={};state.transactions.filter(t=>t.type==='expense').forEach(t=>{const k=t.date.slice(0,7);months[k]=(months[k]||0)+t.amount});
+  const sorted=Object.keys(months).sort();
+  const ctx3=document.getElementById('monthlySpendingChart');
+  if(ctx3){if(analyticsCharts.ms)analyticsCharts.ms.destroy();analyticsCharts.ms=new Chart(ctx3,{type:'line',data:{labels:sorted.map(m=>{const[y,mo]=m.split('-');return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(mo)-1]+' '+y}),datasets:[{label:'Spending',data:sorted.map(m=>months[m]),borderColor:'#22D3EE',backgroundColor:'rgba(34,211,238,0.15)',borderWidth:3,fill:true,tension:.3,pointBackgroundColor:'#F87171',pointBorderColor:'#F87171',pointRadius:5}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#22D3EE',font:{family:'VT323',size:14}},grid:{color:'rgba(34,211,238,0.08)'}},y:{beginAtZero:true,ticks:{color:'#22D3EE',font:{family:'VT323',size:12},callback:v=>'₹'+v.toLocaleString('en-IN')},grid:{color:'rgba(34,211,238,0.08)'}}}}})}
+  const sg=document.getElementById('statsGrid');
+  if(sg){const txs=state.transactions;const avgE=txs.filter(t=>t.type==='expense').length>0?s.expenses/txs.filter(t=>t.type==='expense').length:0;const avgI=txs.filter(t=>t.type==='income').length>0?s.income/txs.filter(t=>t.type==='income').length:0;const sr=s.income>0?((s.income-s.expenses)/s.income*100):0;
+    sg.innerHTML=`
+      <div style="padding:12px;border:2px solid rgba(34,211,238,.4);background:rgba(34,211,238,.05)"><div style="font-size:13px;color:var(--text-muted)">Total transactions</div><div style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--cyan);margin-top:4px">${txs.length}</div></div>
+      <div style="padding:12px;border:2px solid rgba(34,211,238,.4);background:rgba(34,211,238,.05)"><div style="font-size:13px;color:var(--text-muted)">Avg expense</div><div style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--red);margin-top:4px">${formatCurrency(Math.round(avgE))}</div></div>
+      <div style="padding:12px;border:2px solid rgba(34,211,238,.4);background:rgba(34,211,238,.05)"><div style="font-size:13px;color:var(--text-muted)">Avg income</div><div style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--green);margin-top:4px">${formatCurrency(Math.round(avgI))}</div></div>
+      <div style="padding:12px;border:2px solid rgba(34,211,238,.4);background:rgba(34,211,238,.05)"><div style="font-size:13px;color:var(--text-muted)">Savings rate</div><div style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--cyan);margin-top:4px">${Math.round(sr)}%</div></div>
+    `}
+}
+
+function setupBudgetPage(){document.getElementById('saveBudgetBtn').addEventListener('click',()=>{const v=parseFloat(document.getElementById('monthlyBudgetInput').value);if(v&&v>0){state.budgets.total=v;saveBudgets(state.budgets);renderBudget();renderBudgetPage();showToast('Budget updated')}})}
+function renderBudgetPage(){
+  const input=document.getElementById('monthlyBudgetInput');if(input)input.value=state.budgets.total||20000;
+  const cc=document.getElementById('categoryBudgets');
+  if(cc){cc.innerHTML=CATEGORIES.filter(c=>c.name!=='Income').map(c=>{const cur=state.budgets.categories[c.name]||0;return `<div class="category-budget-item"><span style="color:${getCategoryColor(c.name)}">${getCategoryIconSvg(c.name)}</span><span class="cat-name">${c.name}</span><input type="number" class="cat-budget-input" data-cat="${c.name}" value="${cur}" min="0" placeholder="0"></div>`}).join('');
+    cc.querySelectorAll('.cat-budget-input').forEach(i=>i.addEventListener('change',()=>{state.budgets.categories[i.dataset.cat]=parseFloat(i.value)||0;saveBudgets(state.budgets);renderBudgetPage();showToast('Budget updated')}))}
+  const pc=document.getElementById('budgetProgressList');
+  if(pc){const s=getStats();const total=state.budgets.total||20000;const spent=s.expenses;const pct=total>0?spent/total*100:0;
+    let h=`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:14px;color:var(--text-dim);margin-bottom:4px"><span>Total spending</span><span>${formatCurrency(spent)} / ${formatCurrency(total)}</span></div><div style="height:16px;background:var(--panel-alt);border:2px solid var(--border);overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${pct>=90?'linear-gradient(90deg,#DC2626,#F87171)':pct>=70?'linear-gradient(90deg,#D97706,#FBBF24)':'linear-gradient(90deg,var(--purple-dim),var(--pink))'};transition:width .6s"></div></div><div style="text-align:right;font-size:13px;color:var(--text-muted);margin-top:2px">${Math.round(pct)}% used</div></div>`;
+    const cs={};state.transactions.filter(t=>t.type==='expense').forEach(t=>{cs[t.category]=(cs[t.category]||0)+t.amount});
+    CATEGORIES.filter(c=>c.name!=='Income').forEach(c=>{const b=state.budgets.categories[c.name]||0;if(b<=0)return;const sc=cs[c.name]||0;const cp=b>0?sc/b*100:0;h+=`<div style="margin-bottom:8px;padding:8px;border:2px solid var(--border);background:var(--panel-alt)"><div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:${getCategoryColor(c.name)}">${getCategoryIconSvg(c.name)} ${c.name}</span><span style="color:var(--text-dim)">${formatCurrency(sc)} / ${formatCurrency(b)}</span></div><div style="height:8px;background:var(--panel);border:1px solid var(--border);margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.min(cp,100)}%;background:${cp>=100?'var(--red)':cp>=70?'#FBBF24':getCategoryColor(c.name)};transition:width .6s"></div></div>${cp>=100?'<div style="font-size:12px;color:var(--red);margin-top:2px">⚠ Over budget!</div>':cp>=70?'<div style="font-size:12px;color:#FBBF24;margin-top:2px">⚠ Approaching limit</div>':''}</div>`});
+    pc.innerHTML=h}
+}
+
+function setupDataActions(){
+  document.getElementById('exportJson').addEventListener('click',()=>{downloadFile(JSON.stringify({transactions:state.transactions,budgets:state.budgets,settings:state.settings,exportedAt:new Date().toISOString()},null,2),'ledger_data.json','application/json');showToast('Data exported successfully')});
+  document.getElementById('importJson').addEventListener('click',()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.transactions)state.transactions=d.transactions;if(d.budgets)state.budgets=d.budgets;if(d.settings)state.settings=d.settings;saveData({transactions:state.transactions});saveBudgets(state.budgets);saveSettings(state.settings);renderAll();showToast('Data imported successfully')}catch(err){showToast('Invalid JSON file','error')}};r.readAsText(f)};i.click()});
+  document.getElementById('exportCsv').addEventListener('click',()=>{const h=['Date','Description','Category','Type','Amount','Notes'];const rows=state.transactions.map(t=>[t.date,`"${(t.description||'').replace(/"/g,'""')}"`,t.category,t.type,t.amount,`"${(t.notes||'').replace(/"/g,'""')}"`]);downloadFile([h.join(','),...rows.map(r=>r.join(','))].join('\n'),'ledger_transactions.csv','text/csv');showToast('CSV exported successfully')});
+  document.getElementById('backupData').addEventListener('click',()=>{downloadFile(JSON.stringify({transactions:state.transactions,budgets:state.budgets,settings:state.settings,backedUpAt:new Date().toISOString()},null,2),`ledger_backup_${Date.now()}.json`,'application/json');showToast('Backup created successfully')});
+  document.getElementById('restoreData').addEventListener('click',()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.transactions)state.transactions=d.transactions;if(d.budgets)state.budgets=d.budgets;if(d.settings)state.settings=d.settings;saveData({transactions:state.transactions});saveBudgets(state.budgets);saveSettings(state.settings);renderAll();showToast('Data restored successfully')}catch(err){showToast('Invalid backup file','error')}};r.readAsText(f)};i.click()});
+  document.getElementById('clearData').addEventListener('click',()=>{document.getElementById('clearModal').classList.add('open');document.getElementById('clearPassword').value=''});
+  document.getElementById('clearCancel').addEventListener('click',()=>document.getElementById('clearModal').classList.remove('open'));
+  document.getElementById('clearConfirm').addEventListener('click',()=>{if(document.getElementById('clearPassword').value==='59595'){localStorage.removeItem(STORAGE_KEY);localStorage.removeItem(BUDGET_KEY);localStorage.removeItem(SETTINGS_KEY);state.transactions=[];state.budgets={total:20000,categories:{}};state.settings={darkMode:true,presets:[],displayName:'Aryan',currency:'INR'};saveData({transactions:[]});saveBudgets(state.budgets);saveSettings(state.settings);document.getElementById('clearModal').classList.remove('open');renderAll();showToast('All data cleared','error')}else showToast('Incorrect password','error')});
+  document.getElementById('clearModal').addEventListener('click',e=>{if(e.target===document.getElementById('clearModal'))document.getElementById('clearModal').classList.remove('open')});
+}
+function downloadFile(content,filename,type){const b=new Blob([content],{type});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u)}
+
+function applyTheme(){const isDark=state.settings.darkMode!==false;document.body.classList.toggle('light-mode',!isDark);const b=document.getElementById('themeToggle');if(b)b.querySelector('span:last-child').textContent=isDark?'Dark mode':'Light mode'}
+document.getElementById('themeToggle').addEventListener('click',()=>{state.settings.darkMode=!state.settings.darkMode;saveSettings(state.settings);applyTheme();showToast(state.settings.darkMode?'Dark mode enabled':'Light mode enabled')});
+
+function setupKeyboardShortcuts(){
+  const shortcutsBtn=document.getElementById('shortcutsBtn');
+  const shortcutsPanel=document.getElementById('shortcutsPanel');
+  const shortcutsClose=document.getElementById('shortcutsClose');
+
+  shortcutsBtn.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    shortcutsPanel.classList.toggle('open');
+  });
+
+  shortcutsClose.addEventListener('click',()=>{
+    shortcutsPanel.classList.remove('open');
+  });
+
+  document.addEventListener('click',(e)=>{
+    if(!shortcutsPanel.contains(e.target)&&e.target!==shortcutsBtn&&!shortcutsBtn.contains(e.target)){
+      shortcutsPanel.classList.remove('open');
+    }
+  });
+
+  document.addEventListener('keydown',e=>{
+    const tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea'||tag==='select')return;
+    if(e.key==='Escape'){
+      closeModal();
+      document.getElementById('clearModal').classList.remove('open');
+      document.getElementById('shortcutsPanel').classList.remove('open');
+    }
+    if(e.key==='n'||e.key==='N'){e.preventDefault();openNewModal()}
+    if(e.key==='d'||e.key==='D')switchPage('dashboard');
+    if(e.key==='t'||e.key==='T')switchPage('transactions');
+    if(e.key==='a'||e.key==='A')switchPage('analytics');
+    if(e.key==='b'||e.key==='B')switchPage('budget');
+    if((e.ctrlKey||e.metaKey)&&e.key==='e'){e.preventDefault();document.getElementById('exportJson').click()}
+  });
+}
+
+document.getElementById('editPresets').addEventListener('click',()=>{
+  const cur=state.settings.presets||[];const text=cur.map(p=>`${p.name}, ${p.amount}, ${p.category}`).join('\n');
+  const input=prompt('Edit presets (one per line: Name, Amount, Category):',text);
+  if(input!==null){const presets=[];input.split('\n').filter(l=>l.trim()).forEach(line=>{const parts=line.split(',').map(s=>s.trim());if(parts.length>=3){const amt=parseFloat(parts[1]);if(!isNaN(amt))presets.push({name:parts[0],amount:amt,category:parts[2]})}});state.settings.presets=presets;saveSettings(state.settings);renderQuickAdd();showToast('Presets updated')}
+});
+
+document.getElementById('saveSettingsBtn').addEventListener('click',()=>{state.settings.displayName=document.getElementById('settingsName').value;state.settings.currency=document.getElementById('settingsCurrency').value;saveSettings(state.settings);showToast('Settings saved')});
+
+init();
+</script>
+</body>
+</html>
